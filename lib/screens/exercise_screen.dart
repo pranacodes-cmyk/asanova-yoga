@@ -1,0 +1,75 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../data/content.dart';
+import '../theme/tokens.dart';
+import '../widgets/demo_film.dart';
+import '../widgets/exercise_body.dart';
+import '../widgets/scaffold.dart';
+import '../widgets/ui.dart';
+import 'plan_detail_screen.dart';
+
+class ExerciseScreen extends StatelessWidget {
+  const ExerciseScreen({super.key, required this.exerciseId});
+  final String exerciseId;
+  @override
+  Widget build(BuildContext context) {
+    final e = Content.i.exercise(exerciseId);
+    if (e == null) return const NotFoundView();
+    return AsanovaScaffold(
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.only(bottom: bottomInset(context) + 120),
+            child: Column(
+              children: [
+                // Square like the film itself, so no pose is cropped at the sides.
+                AspectRatio(
+                  aspectRatio: 1,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      DemoFilm(exercise: e),
+                      const Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: 96,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [C.cream, Color(0x00F7F3EC)],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: 20,
+                        top: topInset(context) + 10,
+                        child: const BackBtn(),
+                      ),
+                    ],
+                  ),
+                ),
+                Transform.translate(
+                  offset: const Offset(0, -24),
+                  child: ExerciseBody(exercise: e, hero: false),
+                ),
+              ],
+            ),
+          ),
+          BottomCta(
+            child: AsanovaButton(
+              label: 'Practice for ${(e.durationSec * 2 / 60).round()} min',
+              icon: Icons.play_arrow_rounded,
+              onTap: () => context.push('/player/ex:${e.id}'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
