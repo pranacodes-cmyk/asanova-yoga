@@ -26,7 +26,7 @@ jobs:
       # Existing files are never overwritten.
       - name: Restore Gradle wrapper
         run: |
-          flutter create --platforms=android --project-name yoga --org com.asanova .
+          flutter create --platforms=android --project-name asanova --org com.asanova .
           rm -f test/widget_test.dart
 
       - name: Install dependencies
