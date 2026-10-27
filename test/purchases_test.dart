@@ -5,9 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:enso/services/purchase_service.dart';
 
 void main() {
-  final pricing = jsonDecode(
-    File('../scripts/store/pricing.json').readAsStringSync(),
-  ) as Map<String, dynamic>;
+  // The store scripts live next to the app only in the full project; the standalone store repository
+  // (CI) has just the app, so the cross-checks against them are skipped there.
+  final pricingFile = File('../scripts/store/pricing.json');
+  final productsFile = File('../scripts/store/products.py');
+  final pricing = pricingFile.existsSync()
+      ? jsonDecode(pricingFile.readAsStringSync()) as Map<String, dynamic>
+      : null;
   double usd(String s) => double.parse(s.replaceAll(RegExp('[^0-9.]'), ''));
 
   test('only the regular yearly plan carries a trial, and it is 7 days', () {
@@ -66,12 +70,14 @@ void main() {
 
   test('placeholder prices are the US store prices: yearly 59.99, monthly 7.99, gift 39.99, exit 34.99, lifetime 99.99', () {
     final all = [...regularOffers, ...giftOffers, exitOffer];
-    for (final o in all) {
-      expect(
-        usd(o.price),
-        (pricing['plans'][o.id]['tier1'] as num).toDouble(),
-        reason: o.id,
-      );
+    if (pricing != null) {
+      for (final o in all) {
+        expect(
+          usd(o.price),
+          (pricing['plans'][o.id]['tier1'] as num).toDouble(),
+          reason: o.id,
+        );
+      }
     }
     expect(usd(all.firstWhere((o) => o.id == 'yearly').price), 59.99);
     expect(usd(all.firstWhere((o) => o.id == 'monthly').price), 7.99);
@@ -81,24 +87,30 @@ void main() {
     expect(usd(standardOffers.first.price), 59.99);
   });
 
-  test('every plan maps to a RevenueCat package that exists in scripts/store/products.py', () {
-    final products = File('../scripts/store/products.py').readAsStringSync();
-    for (final plan in [
-      'standardYearly',
-      'yearly',
-      'monthly',
-      'gift',
-      'exit',
-      'lifetime',
-    ]) {
-      final candidates = planPackages[plan]!;
-      expect(candidates, isNotEmpty, reason: plan);
-      for (final (_, id) in candidates) {
-        expect(products.contains("'$id'"), isTrue, reason: '$plan → $id');
+  test(
+    'every plan maps to a RevenueCat package that exists in scripts/store/products.py',
+    () {
+      final products = productsFile.readAsStringSync();
+      for (final plan in [
+        'standardYearly',
+        'yearly',
+        'monthly',
+        'gift',
+        'exit',
+        'lifetime',
+      ]) {
+        final candidates = planPackages[plan]!;
+        expect(candidates, isNotEmpty, reason: plan);
+        for (final (_, id) in candidates) {
+          expect(products.contains("'$id'"), isTrue, reason: '$plan → $id');
+        }
       }
-    }
-    expect(products.contains("'standard'"), isTrue);
-  });
+      expect(products.contains("'standard'"), isTrue);
+    },
+    skip: productsFile.existsSync()
+        ? false
+        : 'store scripts not in this checkout',
+  );
 
   test('store product ids map back to the right plan', () {
     expect(PurchaseService.planForProduct('asanova_plus_lifetime'), 'lifetime');

@@ -593,7 +593,7 @@ void main() {
     test('hashes lines identically across clients', () {
       expect(voiceKey('Breathe in'), 'v1c9247bd');
       expect(voiceKey('Session complete. Beautifully done.'), 'vd714375a');
-      expect(voiceKey('Tai Chi · 太極 — calm'), 'vf69244b6');
+      expect(voiceKey('Yoga · योग — calm'), 'veb0a5329');
     });
     test('every line the players speak has a natural-voice clip or recorded provider refusal', () {
       final blockedFile =
@@ -891,7 +891,10 @@ void main() {
           for (final p in json['plans'] as List) p['id'],
         ]);
         final web = File('../src/data/i18n/content.$lang.json');
-        expect(file.readAsStringSync(), web.readAsStringSync());
+        // the web prototype is only next to the app in the full project, not in the store repository
+        if (web.existsSync()) {
+          expect(file.readAsStringSync(), web.readAsStringSync());
+        }
       }
       Content.loadFromJson(json);
       expect(appLang, 'en');
