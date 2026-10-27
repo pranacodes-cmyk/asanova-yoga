@@ -5,8 +5,8 @@ import '../theme/tokens.dart';
 
 /// Screen container: background colour + status-bar icon tone (web Screen tone).
 /// [lightIcons] = true means light status-bar icons (for dark/immersive screens).
-class AsanovaScaffold extends StatelessWidget {
-  const AsanovaScaffold({
+class EnsoScaffold extends StatelessWidget {
+  const EnsoScaffold({
     super.key,
     required this.body,
     this.background = C.cream,

@@ -1,14 +1,16 @@
-name: asanova
+name: enso
 description: "Asanova — yoga, breathwork and meditation."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.13.5
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
   go_router: ^18.1.0
   provider: ^6.1.5+1
@@ -26,6 +28,8 @@ dependencies:
   in_app_review: ^2.0.12
   package_info_plus: ^10.2.2
   http: ^1.6.0
+  path_provider: ^2.1.5
+  purchases_flutter: ^9.9.7
 
 dev_dependencies:
   flutter_test:
@@ -37,6 +41,7 @@ flutter:
 
   assets:
     - assets/data/
+    - assets/data/i18n/
     - assets/images/
     - assets/audio/
     - assets/video/

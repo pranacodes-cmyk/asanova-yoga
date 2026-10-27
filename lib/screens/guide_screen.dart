@@ -11,6 +11,7 @@ import '../theme/tokens.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/ui.dart';
 import 'plan_detail_screen.dart';
+import '../i18n/i18n.dart';
 
 /// Short original article from the "Learn the art" shelf (web /guide/$guideId).
 class GuideScreen extends StatefulWidget {
@@ -49,7 +50,7 @@ class _GuideScreenState extends State<GuideScreen> {
     if (g == null) return const NotFoundView();
     final cat = Content.i.category(g.category);
     final more = Content.i.guides.where((x) => x.id != g.id).take(3).toList();
-    return AsanovaScaffold(
+    return EnsoScaffold(
       lightIcons: true,
       body: Stack(
         children: [
@@ -102,58 +103,83 @@ class _GuideScreenState extends State<GuideScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: C.jade,
-                                      borderRadius: BorderRadius.circular(99),
-                                    ),
-                                    child: Text(
-                                      g.tag.toUpperCase(),
-                                      style: T.tiny.copyWith(
-                                        fontSize: 11,
-                                        letterSpacing: 1.1,
-                                        fontWeight: FontWeight.w700,
-                                        color: C.ivory,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: C.ivory.withValues(alpha: 0.92),
-                                      borderRadius: BorderRadius.circular(99),
-                                      boxShadow: S.soft,
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
+                                  // tag and reading time wrap onto two lines before squeezing the listen button
+                                  Expanded(
+                                    child: Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
                                       children: [
-                                        const Icon(
-                                          LucideIcons.clock,
-                                          size: 13,
-                                          color: C.ink,
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: C.jade,
+                                            borderRadius: BorderRadius.circular(
+                                              99,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            trTag(g.tag).toUpperCase(),
+                                            style: T.tiny.copyWith(
+                                              fontSize: 11,
+                                              letterSpacing: 1.1,
+                                              fontWeight: FontWeight.w700,
+                                              color: C.ivory,
+                                            ),
+                                          ),
                                         ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${g.minutes} min read',
-                                          style: T.tiny.copyWith(color: C.ink),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: C.ivory.withValues(
+                                              alpha: 0.92,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              99,
+                                            ),
+                                            boxShadow: S.soft,
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                LucideIcons.clock,
+                                                size: 13,
+                                                color: C.ink,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: Text(
+                                                  tr('guide.minRead', {
+                                                    'n': g.minutes,
+                                                  }),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: T.tiny.copyWith(
+                                                    color: C.ink,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  const Spacer(),
+                                  const SizedBox(width: 8),
                                   Semantics(
                                     button: true,
                                     label: listening
-                                        ? 'Stop listening'
-                                        : 'Listen to this guide',
+                                        ? tr('guide.stopListening')
+                                        : tr('guide.listenToGuide'),
                                     child: Pressable(
                                       onTap: () => _toggleListen(g),
                                       child: AnimatedContainer(
@@ -185,7 +211,9 @@ class _GuideScreenState extends State<GuideScreen> {
                                             ),
                                             const SizedBox(width: 6),
                                             Text(
-                                              listening ? 'Stop' : 'Listen',
+                                              listening
+                                                  ? tr('guide.stop')
+                                                  : tr('guide.listen'),
                                               style: T.tiny.copyWith(
                                                 fontWeight: FontWeight.w700,
                                                 color: listening
@@ -262,7 +290,7 @@ class _GuideScreenState extends State<GuideScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Eyebrow(
-                                'Remember',
+                                tr('guide.remember'),
                                 color: C.ivory.withValues(alpha: 0.7),
                               ),
                               const SizedBox(height: 12),
@@ -298,7 +326,7 @@ class _GuideScreenState extends State<GuideScreen> {
                           ),
                         ),
                         const SizedBox(height: 32),
-                        Text('Keep learning', style: T.title.s(20)),
+                        Text(tr('guide.keepLearning'), style: T.title.s(20)),
                         const SizedBox(height: 12),
                         for (final m in more)
                           Padding(
@@ -346,10 +374,18 @@ class _GuideScreenState extends State<GuideScreen> {
                                                 color: C.muted,
                                               ),
                                               const SizedBox(width: 4),
-                                              Text(
-                                                '${m.tag} · ${m.minutes} min',
-                                                style: T.tiny.w(
-                                                  FontWeight.w500,
+                                              Flexible(
+                                                child: Text(
+                                                  tr('guide.tagMinutes', {
+                                                    'tag': trTag(m.tag),
+                                                    'n': m.minutes,
+                                                  }),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: T.tiny.w(
+                                                    FontWeight.w500,
+                                                  ),
                                                 ),
                                               ),
                                             ],
@@ -376,8 +412,8 @@ class _GuideScreenState extends State<GuideScreen> {
           ),
           if (cat != null)
             BottomCta(
-              child: AsanovaButton(
-                label: 'Practice ${cat.name}',
+              child: EnsoButton(
+                label: tr('guide.practiceCategory', {'name': cat.name}),
                 trailing: LucideIcons.arrowRight,
                 onTap: () => context.push('/category/${cat.id}'),
               ),

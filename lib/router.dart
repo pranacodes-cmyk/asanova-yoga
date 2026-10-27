@@ -11,6 +11,7 @@ import 'screens/edit_profile_screen.dart';
 import 'screens/exercise_screen.dart';
 import 'screens/guide_screen.dart';
 import 'screens/history_screen.dart';
+import 'screens/language_screen.dart';
 import 'screens/legal_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/meditate_screen.dart';
@@ -26,8 +27,11 @@ import 'screens/reminders_screen.dart';
 import 'screens/session_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/welcome_screen.dart';
+import 'data/content.dart';
+import 'logic/lesson_media.dart' show meditationMediaPaths;
 import 'state/app_state.dart';
 import 'theme/tokens.dart';
+import 'widgets/lesson_prepare.dart';
 import 'widgets/tab_shell.dart';
 import 'widgets/toast.dart';
 
@@ -80,8 +84,9 @@ GoRouter buildRouter(AppState app) {
     refreshListenable: app,
     redirect: (context, state) {
       final loc = state.matchedLocation;
-      if (!app.onboarded && _tabRoots.contains(loc)) return '/welcome';
-      if (app.onboarded && (loc == '/welcome' || loc == '/onboarding')) {
+      if (!app.onboarded && _tabRoots.contains(loc)) return '/language';
+      if (app.onboarded &&
+          (loc == '/language' || loc == '/welcome' || loc == '/onboarding')) {
         return '/';
       }
       if (loc.startsWith('/player/')) {
@@ -153,6 +158,10 @@ GoRouter buildRouter(AppState app) {
         pageBuilder: (c, s) => _page(s, const HistoryScreen()),
       ),
       GoRoute(
+        path: '/language',
+        pageBuilder: (c, s) => _page(s, const LanguageScreen()),
+      ),
+      GoRoute(
         path: '/welcome',
         pageBuilder: (c, s) => _page(s, const WelcomeScreen()),
       ),
@@ -170,7 +179,7 @@ GoRouter buildRouter(AppState app) {
           s,
           PaywallScreen(
             from: s.uri.queryParameters['from'] ?? 'app',
-            offer: s.uri.queryParameters['offer'] ?? 'regular',
+            offer: s.uri.queryParameters['offer'] ?? 'standard',
           ),
           modal: true,
         ),
@@ -224,11 +233,8 @@ GoRouter buildRouter(AppState app) {
       ),
       GoRoute(
         path: '/meditation/:id',
-        pageBuilder: (c, s) => _page(
-          s,
-          MeditationPlayerScreen(meditationId: s.pathParameters['id']!),
-          modal: true,
-        ),
+        pageBuilder: (c, s) =>
+            _page(s, _meditationGate(s.pathParameters['id']!), modal: true),
       ),
       GoRoute(
         path: '/breathe',
@@ -256,5 +262,14 @@ GoRouter buildRouter(AppState app) {
             _page(s, LegalScreen(doc: s.pathParameters['doc'] ?? 'privacy')),
       ),
     ],
+  );
+}
+
+/// A meditation opens once its narration is on the phone (downloaded once, then offline).
+Widget _meditationGate(String id) {
+  final m = Content.i.meditation(id);
+  return LessonPrepare(
+    paths: m == null ? const [] : meditationMediaPaths(m, Content.i.voice),
+    child: MeditationPlayerScreen(meditationId: id),
   );
 }

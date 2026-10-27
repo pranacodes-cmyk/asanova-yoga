@@ -10,18 +10,24 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../data/content.dart';
 import '../data/models.dart';
 import '../logic/coach.dart';
+import '../logic/lesson_media.dart';
 import '../logic/logic.dart';
 import '../services/audio_service.dart';
+import '../services/narration.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
 import '../widgets/demo_film.dart';
+import '../widgets/lesson_prepare.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/sheet.dart';
 import '../widgets/ui.dart';
 import 'plan_detail_screen.dart';
+import '../i18n/i18n.dart';
 
-enum _Phase { ready, work, rest }
+/// Phases of a guided session (web `Phase`): the tutor's course welcome, the day's intention
+/// (or a short countdown), a watch-first demo, "your turn" before a flow, timed practice and rest.
+enum _Phase { welcome, intro, ready, demo, turn, work, rest }
 
 const _readySec = 3.0;
 
@@ -33,6 +39,8 @@ const double kPlayerCoachingMin = 292;
 double playerFilmHeight(double width, double height, double bottomInset) =>
     math.max(180.0, math.min(width, height - kPlayerCoachingMin - bottomInset));
 
+/// Opens a session: decides the journey for this person (welcome, which demos), makes sure the
+/// lesson's films and voice are on the phone, then runs the guided player.
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key, required this.sessionId});
   final String sessionId;
@@ -42,77 +50,102 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> {
   late final Session? session = resolveSession(widget.sessionId);
+  late final JourneyOptions opts;
+  late final List<String> paths;
+
+  @override
+  void initState() {
+    super.initState();
+    final app = context.read<AppState>();
+    final s = session;
+    final plan = s?.planId == null ? null : Content.i.plan(s!.planId!);
+    final completed =
+        (s?.planId == null
+            ? null
+            : app.planProgress[s!.planId!]?.completedDays) ??
+        const <int>[];
+    opts = JourneyOptions(
+      known: practisedSet(app.history),
+      demos: app.audio.demos,
+      welcome:
+          plan != null &&
+          s?.day != null &&
+          shouldWelcome(plan, s!.day!, completed),
+      completedDays: completed,
+    );
+    paths = s == null ? const [] : sessionMediaPaths(s, opts, Content.i.voice);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = session;
+    if (s == null) return const NotFoundView();
+    return LessonPrepare(
+      paths: paths,
+      child: _GuidedPlayer(session: s, opts: opts),
+    );
+  }
+}
+
+class _GuidedPlayer extends StatefulWidget {
+  const _GuidedPlayer({required this.session, required this.opts});
+  final Session session;
+  final JourneyOptions opts;
+  @override
+  State<_GuidedPlayer> createState() => _GuidedPlayerState();
+}
+
+class _GuidedPlayerState extends State<_GuidedPlayer> {
   late final AppState app = context.read<AppState>();
+  Session get session => widget.session;
+  late final Plan? plan = session.planId == null
+      ? null
+      : Content.i.plan(session.planId!);
+  bool get multiDay => plan != null && plan!.days.length > 1;
+
   _Phase phase = _Phase.ready;
   int index = 0;
   double remaining = _readySec;
   bool running = true;
   double elapsed = 0, work = 0;
-  bool spokeHalf = false, finished = false;
+  bool spokeHalf = false, finished = false, yourTurn = false;
   int stepIdx = 0;
-  Timer? _tick;
+  String caption = '';
+  Narration? _narr;
+  Timer? _tick, _turnTimer;
   DateTime _last = DateTime.now();
 
-  List<SessionItem> get items => session!.items;
-  Exercise get current => Content.i.exercise(items[index].e)!;
+  List<SessionItem> get items => session.items;
+  SessionItem get item => items[index];
+  Exercise get current => Content.i.exercise(item.e)!;
+  YogaFlow? get flow => Content.i.flow(item.f);
   Exercise? get nextEx =>
       index + 1 < items.length ? Content.i.exercise(items[index + 1].e) : null;
-  String get affirmation =>
-      Content.i.affirmations[(index * 7 + widget.sessionId.length) %
-          Content.i.affirmations.length];
-
-  /// The film with its countdown / affirmation overlays.
-  Widget _filmStage(Exercise shown) => Stack(
-    fit: StackFit.expand,
-    children: [
-      DemoFilm(key: ValueKey(shown.id), exercise: shown, playing: running),
-      if (phase != _Phase.work)
-        ColoredBox(
-          color: C.forest.withValues(alpha: 0.4),
-          child: Center(
-            child: Text(
-              '${math.max(1, remaining.ceil())}',
-              style: T.displayXl.copyWith(fontSize: 64, color: C.ivory).tab,
-            ),
-          ),
-        ),
-      if (shown.isAffirmation && phase == _Phase.work)
-        Container(
-          color: C.forest.withValues(alpha: 0.6),
-          padding: const EdgeInsets.all(24),
-          alignment: Alignment.center,
-          child: Text(
-            shown.description,
-            textAlign: TextAlign.center,
-            style: T.serifAccent.copyWith(fontSize: 26, color: C.ivory),
-          ),
-        ),
-    ],
-  );
-
-  /// The line shown (and spoken) right now: the active instruction step, or the affirmation itself.
-  String _guidance(Exercise e) {
-    if (e.isAffirmation) return e.description;
-    if (e.steps.isEmpty) return e.cue;
-    return e.steps[stepIdx.clamp(0, e.steps.length - 1)];
-  }
+  bool get _voiceLed =>
+      phase == _Phase.welcome ||
+      phase == _Phase.intro ||
+      phase == _Phase.demo ||
+      phase == _Phase.turn;
 
   @override
   void initState() {
     super.initState();
-    if (session == null) return;
     WakelockPlus.enable();
     Sfx.play('sfx-bell-start', 0.6);
-    Future.delayed(const Duration(milliseconds: 700), () {
-      if (mounted) _say(CoachLines.begin(Content.i.exercise(items[0].e)!));
-    });
     _syncMusic();
-    _start();
+    _last = DateTime.now();
+    _tick = Timer.periodic(const Duration(milliseconds: 100), (_) => _onTick());
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
+      widget.opts.welcome && plan != null ? _enterWelcome() : _enterIntro();
+    });
   }
 
   @override
   void dispose() {
     _tick?.cancel();
+    _turnTimer?.cancel();
+    _narr?.dispose();
     Voice.stop();
     Ambient.stop();
     WakelockPlus.disable();
@@ -133,30 +166,125 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
-  void _start() {
-    _tick?.cancel();
-    _last = DateTime.now();
-    _tick = Timer.periodic(const Duration(milliseconds: 100), (_) => _onTick());
+  // ------------------------------------------------------------ voice-led moments
+
+  void _narrate(List<String> lines, VoidCallback then) {
+    _narr?.dispose();
+    final n = Narration(
+      lines: lines,
+      voiceOn: app.audio.voice,
+      rate: app.audio.voiceRate,
+      onLine: (k) {
+        if (mounted) setState(() => caption = lines[k]);
+      },
+      onDone: () {
+        if (mounted && !finished) then();
+      },
+    );
+    _narr = n;
+    if (running) {
+      n.start();
+    } else {
+      setState(
+        () => caption = lines.firstWhere(
+          (l) => l.trim().isNotEmpty,
+          orElse: () => '',
+        ),
+      );
+    }
   }
+
+  void _enterWelcome() {
+    setState(() => phase = _Phase.welcome);
+    _narrate(CoachLines.welcome(plan!), _enterIntro);
+  }
+
+  void _enterIntro() {
+    _narr?.dispose();
+    Voice.stop();
+    if (session.intro.isEmpty) {
+      setState(() {
+        phase = _Phase.ready;
+        remaining = _readySec;
+      });
+      _say(CoachLines.begin(Content.i.exercise(items.first.e)!));
+      return;
+    }
+    setState(() {
+      phase = _Phase.intro;
+      index = 0;
+    });
+    _narrate(
+      CoachLines.dayIntro(session.intro, multiDay ? session.day : null),
+      () => _beginItem(0),
+    );
+  }
+
+  /// Item i opens with its demo, a flow's "your turn", or straight into practice.
+  void _beginItem(int i) {
+    _narr?.dispose();
+    final it = items[i];
+    final demo = journeyDemoAt(items, i, widget.opts);
+    setState(() => index = i);
+    final blockStart = it.f != null && (i == 0 || items[i - 1].f != it.f);
+    if (blockStart && Content.i.flow(it.f) != null) {
+      demo == DemoKind.flow ? _enterDemo(i) : _enterTurn(i);
+    } else if (demo == DemoKind.pose) {
+      _enterDemo(i);
+    } else {
+      _startWork(i);
+    }
+  }
+
+  void _enterDemo(int i) {
+    final it = items[i];
+    final f = Content.i.flow(it.f);
+    setState(() {
+      index = i;
+      phase = _Phase.demo;
+    });
+    Sfx.play('sfx-chime', 0.35);
+    _narrate(
+      f != null && it.f != null
+          ? CoachLines.flowDemo(f)
+          : CoachLines.demo(Content.i.exercise(it.e)!),
+      () => f != null ? _enterTurn(i) : _startWork(i, afterDemo: true),
+    );
+  }
+
+  void _enterTurn(int i) {
+    final f = Content.i.flow(items[i].f)!;
+    setState(() {
+      index = i;
+      phase = _Phase.turn;
+    });
+    Haptics.medium();
+    _narrate(CoachLines.flowGo(f), () => _startWork(i));
+  }
+
+  // ------------------------------------------------------------ timed practice
 
   void _onTick() {
     if (!running || finished) return;
     final now = DateTime.now();
     final dt = now.difference(_last).inMicroseconds / 1e6;
     _last = now;
+    if (phase != _Phase.ready && phase != _Phase.welcome) elapsed += dt;
+    if (_voiceLed) return;
     final prev = remaining;
     final next = prev - dt;
-    if (phase != _Phase.ready) elapsed += dt;
     if (phase == _Phase.work) work += dt;
     bool crossed(double n) => prev > n && next <= n;
-    if (app.audio.beeps && (crossed(3) || crossed(2) || crossed(1))) {
+    if (app.audio.beeps &&
+        item.f == null &&
+        (crossed(3) || crossed(2) || crossed(1))) {
       Sfx.play('sfx-tick', 0.5);
     }
-    if (phase == _Phase.work) {
+    if (phase == _Phase.work && item.f == null) {
       final ex = current;
-      final len = items[index].s;
+      final len = item.s;
       if (!ex.isAffirmation && ex.steps.length > 1) {
-        // walk through the real instructions, one step per equal slice of the movement
+        // walk through the real instructions, one step per equal slice of the hold
         final k = ((len - next) / (len / ex.steps.length)).floor().clamp(
           0,
           ex.steps.length - 1,
@@ -167,36 +295,57 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }
       } else if (!spokeHalf && len >= 40 && next <= len / 2) {
         spokeHalf = true;
-        _say(CoachLines.halfway(ex, affirmation), interrupt: false);
+        _say(
+          CoachLines.halfway(ex, halfwayAffirmation(session.id, index)),
+          interrupt: false,
+        );
       }
     }
     setState(() => remaining = next);
     if (next <= 0) {
       switch (phase) {
         case _Phase.ready:
-          _startWork(0);
+          _beginItem(0);
         case _Phase.work:
           _advance();
         case _Phase.rest:
-          _startWork(index + 1);
+          _beginItem(index + 1);
+        default:
+          break;
       }
     }
   }
 
-  void _startWork(int i) {
-    final ex = Content.i.exercise(items[i].e)!;
+  void _startWork(int i, {bool afterDemo = false}) {
+    _narr?.dispose();
+    final it = items[i];
+    final ex = Content.i.exercise(it.e)!;
+    final inFlow = it.f != null;
     setState(() {
       index = i;
       phase = _Phase.work;
-      remaining = items[i].s.toDouble();
+      remaining = it.s.toDouble();
       spokeHalf = false;
       stepIdx = 0;
+      yourTurn = afterDemo;
     });
-    Sfx.play('sfx-chime', 0.45);
-    Haptics.medium();
-    Future.delayed(const Duration(milliseconds: 350), () {
-      if (mounted) _say(CoachLines.start(ex));
-    });
+    _turnTimer?.cancel();
+    if (afterDemo) {
+      _turnTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => yourTurn = false);
+      });
+    }
+    if (!inFlow || isRoundStart(items, i)) Sfx.play('sfx-chime', 0.45);
+    inFlow ? Haptics.light() : Haptics.medium();
+    if (inFlow) {
+      _say(CoachLines.flowMove(it, isRoundStart(items, i)));
+    } else {
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (mounted && phase == _Phase.work && index == i) {
+          _say(afterDemo ? CoachLines.yourTurn(ex) : CoachLines.start(ex));
+        }
+      });
+    }
   }
 
   void _advance() {
@@ -204,15 +353,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _finish();
       return;
     }
-    if (session!.restSec > 0) {
+    final gap = gapBefore(items, index + 1, session.restSec);
+    if (gap > 0) {
       setState(() {
         phase = _Phase.rest;
-        remaining = session!.restSec.toDouble();
+        remaining = gap.toDouble();
       });
       Sfx.play('sfx-chime', 0.35);
       _say(CoachLines.rest(Content.i.exercise(items[index + 1].e)!));
     } else {
-      _startWork(index + 1);
+      _beginItem(index + 1);
     }
   }
 
@@ -220,10 +370,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (finished) return;
     finished = true;
     _tick?.cancel();
+    _narr?.dispose();
     setState(() => running = false);
     Sfx.play('sfx-bell-end', 0.7);
     _say(CoachLines.finish());
-    final s = session!;
+    final s = session;
     final totalWork = items.fold<int>(0, (a, it) => a + it.s);
     final ratio = math.min(1.0, work / math.max(1, totalWork));
     final entry = HistoryEntry(
@@ -243,36 +394,62 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
     app.completeSession(entry);
     Ambient.stop();
-    Future.delayed(const Duration(milliseconds: 600), () {
+    Future.delayed(const Duration(milliseconds: 1400), () {
       if (mounted) context.pushReplacement('/complete?id=${entry.id}');
     });
   }
 
+  // ------------------------------------------------------------ controls
+
   void _togglePlay() {
     Haptics.light();
-    setState(() {
-      running = !running;
-      if (!running) Voice.stop();
-    });
+    setState(() => running = !running);
+    if (running) {
+      _narr?.resume();
+    } else {
+      _narr?.pause();
+      Voice.stop();
+    }
     _last = DateTime.now();
     _syncMusic();
   }
 
   void _skipNext() {
-    if (index >= items.length - 1) {
-      _finish();
-      return;
+    switch (phase) {
+      case _Phase.welcome:
+        _enterIntro();
+      case _Phase.intro:
+      case _Phase.ready:
+        _beginItem(0);
+      case _Phase.demo:
+        Voice.stop();
+        items[index].f != null
+            ? _enterTurn(index)
+            : _startWork(index, afterDemo: true);
+      case _Phase.turn:
+        Voice.stop();
+        _startWork(index);
+      case _Phase.work:
+      case _Phase.rest:
+        if (index >= items.length - 1) {
+          _finish();
+          return;
+        }
+        Voice.stop();
+        _beginItem(index + 1);
     }
-    _startWork(index + 1);
     if (!running) _togglePlay();
   }
 
   void _skipPrev() {
-    final spent = items[index].s - remaining;
+    Voice.stop();
+    final spent = item.s - remaining;
     if (phase == _Phase.work && spent > 3) {
       _startWork(index);
+    } else if (phase == _Phase.welcome || phase == _Phase.intro) {
+      phase == _Phase.welcome ? _enterWelcome() : _enterIntro();
     } else {
-      _startWork(math.max(0, index - 1));
+      _beginItem(math.max(0, phase == _Phase.rest ? index : index - 1));
     }
     if (!running) _togglePlay();
   }
@@ -283,7 +460,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final pctDone =
         ((index + (phase == _Phase.work ? _progress : 0)) / items.length * 100)
             .round();
-    final leave = await showAsanovaSheet<bool>(
+    final leave = await showEnsoSheet<bool>(
       context,
       dark: true,
       builder: (ctx) {
@@ -291,16 +468,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
           child: Column(
             children: [
-              Text('Leave this session?', style: T.displayMd.c(C.ivory)),
+              Text(
+                tr('player.leaveSessionTitle'),
+                style: T.displayMd.c(C.ivory),
+              ),
               const SizedBox(height: 8),
               Text(
-                "You're $pctDone% through. Progress for this session won't be saved.",
+                tr('player.leaveSessionBody', {'pct': pctDone}),
                 textAlign: TextAlign.center,
                 style: T.bodySm.c(C.ivory.withValues(alpha: 0.65)),
               ),
               const SizedBox(height: 24),
-              AsanovaButton(
-                label: 'Keep practicing',
+              EnsoButton(
+                label: tr('player.keepPracticing'),
                 variant: BtnVariant.ivory,
                 onTap: () => Navigator.pop(ctx, false),
               ),
@@ -310,7 +490,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 child: SizedBox(
                   height: 48,
                   child: Center(
-                    child: Text('End session', style: T.label.c(C.terracotta)),
+                    child: Text(
+                      tr('player.endSession'),
+                      style: T.label.c(C.terracotta),
+                    ),
                   ),
                 ),
               ),
@@ -321,6 +504,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
     if (!mounted) return;
     if (leave == true) {
+      _narr?.dispose();
       Voice.stop();
       Ambient.stop();
       context.go('/');
@@ -330,35 +514,234 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _settings() {
-    showAsanovaSheet<void>(
+    showEnsoSheet<void>(
       context,
       dark: true,
       builder: (ctx) => _SoundSheet(onChange: _syncMusic),
     );
   }
 
-  double get _phaseTotal => phase == _Phase.ready
-      ? _readySec
-      : (phase == _Phase.rest
-            ? session!.restSec.toDouble()
-            : items[index].s.toDouble());
+  double get _phaseTotal => switch (phase) {
+    _Phase.ready => _readySec,
+    _Phase.rest => gapBefore(items, index + 1, session.restSec).toDouble(),
+    _ => item.s.toDouble(),
+  };
   double get _progress =>
-      (1 - math.max(0, remaining) / _phaseTotal).clamp(0.0, 1.0);
+      (1 - math.max(0, remaining) / math.max(1, _phaseTotal)).clamp(0.0, 1.0);
+  double get _overall {
+    if (phase == _Phase.welcome ||
+        phase == _Phase.intro ||
+        phase == _Phase.ready) {
+      return 0;
+    }
+    final part = phase == _Phase.work
+        ? _progress
+        : (phase == _Phase.rest ? 1.0 : 0.0);
+    return ((index + part) / items.length).clamp(0.0, 1.0);
+  }
+
+  // ------------------------------------------------------------ view
+
+  Widget _film() {
+    final it = item;
+    final f = flow;
+    final Widget film;
+    if (phase == _Phase.welcome) {
+      film = DemoFilm.keyed(
+        key: const ValueKey('welcome'),
+        film: kTutorWelcomeFilm,
+        poster: 'tutor-seat',
+        playing: running,
+      );
+    } else if (phase == _Phase.demo && f != null && f.demo != null) {
+      film = DemoFilm.keyed(
+        key: ValueKey('flow-${f.id}'),
+        film: f.demo!,
+        poster: current.image,
+        playing: running,
+      );
+    } else {
+      final shown = phase == _Phase.rest && nextEx != null ? nextEx! : current;
+      film = DemoFilm(
+        key: ValueKey('${shown.id}-${it.r ?? 0}'),
+        exercise: shown,
+        playing: running,
+      );
+    }
+    final pill = switch (phase) {
+      _Phase.demo => (LucideIcons.eye, tr('player.watchFirst')),
+      _Phase.turn => (LucideIcons.hand, tr('player.yourTurn')),
+      _ => null,
+    };
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        film,
+        if (phase == _Phase.ready || phase == _Phase.rest)
+          ColoredBox(
+            color: C.forest.withValues(alpha: 0.4),
+            child: Center(
+              child: Text(
+                '${math.max(1, remaining.ceil())}',
+                style: T.displayXl.copyWith(fontSize: 64, color: C.ivory).tab,
+              ),
+            ),
+          ),
+        if (phase == _Phase.intro)
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  C.forest.withValues(alpha: 0.05),
+                  C.forest.withValues(alpha: 0.55),
+                ],
+              ),
+            ),
+          ),
+        if (pill != null)
+          Positioned(
+            left: 14,
+            top: 14,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: C.forest.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(pill.$1, size: 15, color: C.ivory),
+                  const SizedBox(width: 6),
+                  Text(
+                    pill.$2,
+                    style: T.tiny.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: C.ivory,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (current.isAffirmation && phase == _Phase.work)
+          Container(
+            color: C.forest.withValues(alpha: 0.6),
+            padding: const EdgeInsets.all(24),
+            alignment: Alignment.center,
+            child: Text(
+              current.description,
+              textAlign: TextAlign.center,
+              style: T.serifAccent.copyWith(fontSize: 26, color: C.ivory),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String? get _eyebrow {
+    final f = flow;
+    switch (phase) {
+      case _Phase.welcome:
+        return tr('journey.welcomeEyebrow');
+      case _Phase.intro:
+        return multiDay
+            ? tr('journey.dayOfTotal', {
+                'day': session.day ?? 1,
+                'total': plan!.days.length,
+              })
+            : tr('journey.todayEyebrow');
+      case _Phase.demo:
+        return tr('player.watchFirst');
+      case _Phase.turn:
+        return tr('player.yourTurn');
+      case _Phase.work:
+        if (yourTurn) return tr('player.yourTurn');
+        if (f != null) {
+          return '${tr('player.roundOf', {'n': item.r ?? 1, 'total': flowRounds(items, index)})} · ${f.name}';
+        }
+        return item.p;
+      case _Phase.rest:
+        return index + 1 < items.length ? items[index + 1].p : null;
+      case _Phase.ready:
+        return item.p;
+    }
+  }
+
+  String get _title {
+    final f = flow;
+    return switch (phase) {
+      _Phase.welcome => plan!.title,
+      _Phase.intro => session.title,
+      _Phase.demo || _Phase.turn => f?.name ?? current.name,
+      _Phase.rest => nextEx?.name ?? current.name,
+      _ => current.name,
+    };
+  }
+
+  String get _text {
+    if (_voiceLed) return caption;
+    if (phase == _Phase.rest) return tr('player.restGuidance');
+    final ex = current;
+    if (item.c != null) return item.c!;
+    if (ex.isAffirmation) return ex.description;
+    if (ex.steps.isEmpty) return ex.cue;
+    return ex.steps[stepIdx.clamp(0, ex.steps.length - 1)];
+  }
+
+  Widget _centre() {
+    if (!_voiceLed) {
+      return Text(
+        formatClock(remaining),
+        style: T.displayMd.copyWith(fontSize: 32, color: C.ivory).tab,
+      );
+    }
+    final (String label, VoidCallback onTap)? action = switch (phase) {
+      _Phase.welcome => (tr('journey.skipWelcome'), _skipNext),
+      _Phase.intro => (tr('journey.begin'), _skipNext),
+      _Phase.demo => (tr('player.skipDemo'), _skipNext),
+      _ => null,
+    };
+    return SizedBox(
+      height: 38,
+      child: action == null
+          ? null
+          : Pressable(
+              onTap: action.$2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                decoration: BoxDecoration(
+                  color: C.ivory.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                alignment: Alignment.center,
+                child: Text(action.$1, style: T.label.c(C.ivory)),
+              ),
+            ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (session == null) return const NotFoundView();
-    final shown = phase == _Phase.rest && nextEx != null ? nextEx! : current;
-    final shownPhase =
-        items[phase == _Phase.rest && nextEx != null ? index + 1 : index].p;
     final top = topInset(context);
     final bottom = bottomInset(context);
+    final header = switch (phase) {
+      _Phase.welcome || _Phase.intro || _Phase.ready => tr('player.getReady'),
+      _Phase.rest => tr('player.restNextMovement'),
+      _ => tr('player.stepOfTotal', {
+        'current': index + 1,
+        'total': items.length,
+      }),
+    };
+    final eyebrow = _eyebrow;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _exit();
       },
-      child: AsanovaScaffold(
+      child: EnsoScaffold(
         background: C.forest,
         lightIcons: true,
         body: Column(
@@ -371,15 +754,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     icon: LucideIcons.x,
                     tone: Tone.dark,
                     onTap: _exit,
-                    label: 'Close',
+                    label: tr('common.close'),
                   ),
                   Expanded(
                     child: Text(
-                      phase == _Phase.rest
-                          ? 'Rest · next movement'
-                          : phase == _Phase.ready
-                          ? 'Get ready'
-                          : '${index + 1} / ${items.length}',
+                      header,
                       textAlign: TextAlign.center,
                       style: T.caption.c(C.ivory.withValues(alpha: 0.7)),
                     ),
@@ -388,7 +767,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     icon: LucideIcons.slidersHorizontal,
                     tone: Tone.dark,
                     onTap: _settings,
-                    label: 'Audio settings',
+                    label: tr('player.audioSettings'),
                   ),
                 ],
               ),
@@ -409,7 +788,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       SizedBox(
                         width: double.infinity,
                         height: filmH,
-                        child: _filmStage(shown),
+                        child: _film(),
                       ),
                       Expanded(
                         child: Padding(
@@ -417,12 +796,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              if (shownPhase != null) ...[
-                                Eyebrow(shownPhase, color: C.sage),
+                              if (eyebrow != null && eyebrow.isNotEmpty) ...[
+                                Eyebrow(
+                                  eyebrow,
+                                  color:
+                                      phase == _Phase.demo ||
+                                          phase == _Phase.turn ||
+                                          yourTurn
+                                      ? C.terracotta
+                                      : C.sage,
+                                ),
                                 const SizedBox(height: 6),
                               ],
                               Text(
-                                shown.name,
+                                _title,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.center,
@@ -443,27 +830,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                   ),
                                   child: Align(
                                     heightFactor: 1,
-                                    child: Text(
-                                      phase == _Phase.rest
-                                          ? 'Breathe and prepare for the next movement.'
-                                          : _guidance(shown),
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                      style: T.bodySm.copyWith(
-                                        color: C.ivory.withValues(alpha: 0.65),
-                                        height: 1.5,
+                                    child: AnimatedSwitcher(
+                                      duration: const Duration(
+                                        milliseconds: 250,
+                                      ),
+                                      child: Text(
+                                        _text,
+                                        key: ValueKey(_text),
+                                        maxLines: _voiceLed ? 4 : 3,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                        style: T.bodySm.copyWith(
+                                          color: C.ivory.withValues(
+                                            alpha: _voiceLed ? 0.85 : 0.65,
+                                          ),
+                                          height: 1.5,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                              Text(
-                                formatClock(remaining),
-                                style: T.displayMd
-                                    .copyWith(fontSize: 32, color: C.ivory)
-                                    .tab,
-                              ),
+                              _centre(),
                               const SizedBox(height: 8),
                               Row(
                                 mainAxisAlignment:
@@ -475,11 +863,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     size: 48,
                                     iconSize: 26,
                                     onTap: _skipPrev,
-                                    label: 'Previous',
+                                    label: tr('player.previous'),
                                   ),
                                   Pressable(
                                     onTap: _togglePlay,
-                                    semanticLabel: running ? 'Pause' : 'Play',
+                                    semanticLabel: running
+                                        ? tr('common.pause')
+                                        : tr('common.play'),
                                     child: Container(
                                       width: 64,
                                       height: 64,
@@ -502,7 +892,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     size: 48,
                                     iconSize: 26,
                                     onTap: _skipNext,
-                                    label: 'Next',
+                                    label: tr('player.next'),
                                   ),
                                 ],
                               ),
@@ -510,14 +900,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(2),
                                 child: LinearProgressIndicator(
-                                  value:
-                                      (index +
-                                          (phase == _Phase.work
-                                              ? _progress
-                                              : phase == _Phase.rest
-                                              ? 1
-                                              : 0)) /
-                                      items.length,
+                                  value: _overall,
                                   minHeight: 2,
                                   backgroundColor: C.ivory.withValues(
                                     alpha: 0.15,
@@ -576,21 +959,21 @@ class _SoundSheet extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 4),
-            child: Text('Sound', style: T.title.c(C.ivory)),
+            child: Text(tr('player.sound'), style: T.title.c(C.ivory)),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               toggle(
                 a.voice ? LucideIcons.mic : LucideIcons.micOff,
-                'Voice ${a.voice ? 'on' : 'off'}',
+                a.voice ? tr('player.voiceOn') : tr('player.voiceOff'),
                 a.voice,
                 () => app.setAudio((x) => x.voice = !x.voice),
               ),
               const SizedBox(width: 12),
               toggle(
                 LucideIcons.music2,
-                'Music ${a.music ? 'on' : 'off'}',
+                a.music ? tr('player.musicOn') : tr('player.musicOff'),
                 a.music,
                 () {
                   app.setAudio((x) => x.music = !x.music);
@@ -599,11 +982,50 @@ class _SoundSheet extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          Pressable(
+            onTap: () => app.setAudio((x) => x.demos = !x.demos),
+            semanticLabel: tr('player.demos'),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: a.demos ? C.jade : C.ivory.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    a.demos ? LucideIcons.eye : LucideIcons.eyeOff,
+                    size: 20,
+                    color: C.ivory,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(tr('player.demos'), style: T.label.c(C.ivory)),
+                        const SizedBox(height: 2),
+                        Text(
+                          tr('player.demosDesc'),
+                          style: T.tiny.copyWith(
+                            fontWeight: FontWeight.w400,
+                            color: C.ivory.withValues(alpha: 0.75),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.only(left: 4),
             child: Text(
-              'Soundscape',
+              tr('player.soundscape'),
               style: T.caption.copyWith(
                 fontWeight: FontWeight.w600,
                 color: C.ivory.withValues(alpha: 0.6),
@@ -670,7 +1092,7 @@ class _SoundSheet extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: 4),
             child: Text(
-              'Music volume',
+              tr('player.musicVolume'),
               style: T.caption.copyWith(
                 fontWeight: FontWeight.w600,
                 color: C.ivory.withValues(alpha: 0.6),

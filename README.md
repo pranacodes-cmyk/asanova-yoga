@@ -1,12 +1,13 @@
-# Asanova — yoga, breathwork and meditation (Flutter)
+# Asanova — Android app (Flutter)
 
-Asanova is a guided yoga app for Android and iOS: day-by-day courses, single classes,
-filmed pose demonstrations with spoken cues, breathwork and guided meditation.
-Package / bundle id: `com.asanova.yoga`.
+Yoga, breathwork, chair and wall yoga, and meditation. This Flutter app is the
+production Android client; the web project at the repository root is its pixel-matched
+interactive prototype.
 
 ## Build
 
 ```bash
+cd mobile
 flutter pub get
 flutter analyze
 flutter test
@@ -14,48 +15,35 @@ flutter build apk --release        # build/app/outputs/flutter-apk/app-release.a
 flutter build appbundle --release  # Play Store bundle
 ```
 
-## CI
+CI (this repo): `.github/workflows/build.yml` builds a debug APK on every push to `main` or manual run (artifact `enso-debug-apk`). In the Lovable monorepo, `.github/workflows/android.yml` builds the APK + AAB on every push to `main`
+touching `mobile/` and uploads them as the `enso-android` artifact.
 
-| Workflow | What it does |
-| --- | --- |
-| `.github/workflows/build.yml` | Debug APK on every push to `main` (artifact `asanova-debug-apk`). |
-| `.github/workflows/release.yml` | Manual. Signed AAB → Play internal track (draft by default) and IPA → TestFlight from the same commit. Version name comes from `pubspec.yaml`; the build number is the `build_number` input or the run number. |
-| `.github/workflows/sync-source.yml` | Applies a source snapshot uploaded by the Asanova build workspace as a normal commit. |
+### Release signing
 
-Release secrets (GitHub → Settings → Secrets and variables → Actions):
-
-- Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`,
-  `ANDROID_STORE_PASSWORD`, `PLAY_SERVICE_ACCOUNT_JSON`
-- iOS: `IOS_DEV_P12_BASE64`, `IOS_DEV_P12_PASSWORD`, `ASC_KEY_ID`, `ASC_ISSUER_ID`,
-  `ASC_PRIVATE_KEY`
-
-Signing material never goes in Git (`.gitignore` blocks keystores, certificates and
-`android/key.properties`). Locally, release signing reads `android/key.properties`:
+Without signing secrets, release builds are signed with the debug key (installable,
+not Play-uploadable). To sign for the Play Store add these GitHub secrets:
+`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`,
+`ANDROID_STORE_PASSWORD` — or locally create `android/key.properties`:
 
 ```
-storeFile=/absolute/path/to/upload.jks
+storeFile=release.jks
 storePassword=…
 keyAlias=…
 keyPassword=…
 ```
 
-Without it, release builds fall back to the debug key (installable, not uploadable).
-
-## Privacy pages
-
-`docs/` holds the privacy policy and terms served by GitHub Pages for both store
-listings. They are generated together with the in-app copy, so edit the source text in
-the Asanova workspace rather than the HTML here.
-
 ## Structure
 
 | Path | What |
 | --- | --- |
-| `lib/theme/` | Design tokens (colors, gradients, shadows, type) |
+| `lib/theme/` | Design tokens (colors, gradients, shadows, type) — mirror `src/styles.css` |
 | `lib/data/` | Content models + loader for `assets/data/content.json` |
-| `lib/logic/` | Business rules and the coach voice script |
-| `lib/state/app_state.dart` | Persisted on-device state |
-| `lib/services/` | Audio/voice, reminders, purchases, store links |
+| `lib/logic/logic.dart` | Business rules — 1:1 with `src/lib/logic.ts` |
+| `lib/state/app_state.dart` | Persisted state — mirrors `src/lib/store.ts` |
+| `lib/services/` | Audio/voice, reminders, purchases (local preview until new store products are configured) |
 | `lib/widgets/` | Shared UI (buttons, rings, sheets, tab bar, ruler, breath orb…) |
-| `lib/screens/` | One file per screen |
-| `assets/` | Generated content, images, films, audio and voice clips |
+| `lib/screens/` | One file per screen, same names as the web routes |
+
+Shared assets (`assets/data`, `assets/images`, `assets/audio`) are generated at the
+repo root: `bun scripts/generate-content.ts`, `python3 scripts/generate-audio.py`,
+`bash scripts/sync-mobile-assets.sh`.

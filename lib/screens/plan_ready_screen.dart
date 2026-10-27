@@ -14,12 +14,13 @@ import '../theme/text.dart';
 import '../theme/tokens.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/ui.dart';
+import '../i18n/i18n.dart';
 
 const _checklist = [
-  'Reading your intention',
-  'Adapting poses to your body',
-  'Choosing your course',
-  'Pacing your first week',
+  'planReady.readingIntention',
+  'planReady.adaptingPoses',
+  'planReady.choosingCourse',
+  'planReady.pacingFirstWeek',
 ];
 
 class PlanReadyScreen extends StatefulWidget {
@@ -54,7 +55,7 @@ class _PlanReadyScreenState extends State<PlanReadyScreen>
     final done = progress >= 100;
     return PopScope(
       canPop: false,
-      child: AsanovaScaffold(
+      child: EnsoScaffold(
         body: AnimatedSwitcher(
           duration: const Duration(milliseconds: 500),
           switchInCurve: kEase,
@@ -107,161 +108,189 @@ class _Generating extends StatelessWidget {
             ),
           ),
         ),
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            28,
-            topInset(context) + 56,
-            28,
-            bottomInset(context) + 24,
-          ),
-          child: Column(
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  const _Ripple(size: 164),
-                  const _SpinningDash(size: 216),
-                  Ring(
-                    value: progress / 100,
-                    size: 188,
-                    stroke: 10,
-                    child: Text('${progress.round()}%', style: T.displayXl.tab),
+        // small phones with large text scroll instead of clipping the checklist and review
+        LayoutBuilder(
+          builder: (context, box) => SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: box.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    28,
+                    topInset(context) + 56,
+                    28,
+                    bottomInset(context) + 24,
                   ),
-                ],
-              ),
-              const SizedBox(height: 40),
-              Text(
-                'Creating your personal plan',
-                textAlign: TextAlign.center,
-                style: T.displayMd,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Matching 91 poses to your answers…',
-                textAlign: TextAlign.center,
-                style: T.bodySm.c(C.muted),
-              ),
-              const SizedBox(height: 28),
-              for (final (i, c) in _checklist.indexed)
-                Builder(
-                  builder: (context) {
-                    final on = progress > (i + 1) * 24;
-                    final current = !on && i == active;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Reveal(
-                        delay: 0.1 + i * 0.12,
-                        dy: 8,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 500),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
+                  child: Column(
+                    children: [
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          const _Ripple(size: 164),
+                          const _SpinningDash(size: 216),
+                          Ring(
+                            value: progress / 100,
+                            size: 188,
+                            stroke: 10,
+                            child: Text(
+                              '${progress.round()}%',
+                              style: T.displayXl.tab,
+                            ),
                           ),
-                          decoration: BoxDecoration(
-                            color: on
-                                ? C.ivory
-                                : (current
-                                      ? C.ivory.withValues(alpha: 0.6)
-                                      : Colors.transparent),
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: on ? S.soft : null,
-                          ),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 28,
-                                height: 28,
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 500,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: on ? C.jade : C.sand,
-                                      ),
-                                      child: on
-                                          ? const Center(
-                                              child: Icon(
-                                                LucideIcons.check,
-                                                size: 16,
-                                                color: C.ivory,
-                                              ),
-                                            )
-                                          : null,
-                                    ),
-                                    if (current)
-                                      const SizedBox(
+                        ],
+                      ),
+                      const SizedBox(height: 40),
+                      Text(
+                        tr('planReady.creatingPlan'),
+                        textAlign: TextAlign.center,
+                        style: T.displayMd,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        tr('planReady.matchingPoses', {
+                          'n': Content.i.exercises
+                              .where((e) => !e.isAffirmation)
+                              .length,
+                        }),
+                        textAlign: TextAlign.center,
+                        style: T.bodySm.c(C.muted),
+                      ),
+                      const SizedBox(height: 28),
+                      for (final (i, c) in _checklist.indexed)
+                        Builder(
+                          builder: (context) {
+                            final on = progress > (i + 1) * 24;
+                            final current = !on && i == active;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Reveal(
+                                delay: 0.1 + i * 0.12,
+                                dy: 8,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 500),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: on
+                                        ? C.ivory
+                                        : (current
+                                              ? C.ivory.withValues(alpha: 0.6)
+                                              : Colors.transparent),
+                                    borderRadius: BorderRadius.circular(18),
+                                    boxShadow: on ? S.soft : null,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(
                                         width: 28,
                                         height: 28,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: C.jade,
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            AnimatedContainer(
+                                              duration: const Duration(
+                                                milliseconds: 500,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                color: on ? C.jade : C.sand,
+                                              ),
+                                              child: on
+                                                  ? const Center(
+                                                      child: Icon(
+                                                        LucideIcons.check,
+                                                        size: 16,
+                                                        color: C.ivory,
+                                                      ),
+                                                    )
+                                                  : null,
+                                            ),
+                                            if (current)
+                                              const SizedBox(
+                                                width: 28,
+                                                height: 28,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: C.jade,
+                                                    ),
+                                              ),
+                                          ],
                                         ),
                                       ),
-                                  ],
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: AnimatedDefaultTextStyle(
+                                          duration: const Duration(
+                                            milliseconds: 500,
+                                          ),
+                                          style: T.body.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: on || current
+                                                ? C.ink
+                                                : C.muted,
+                                          ),
+                                          child: Text(tr(c)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 500),
-                                style: T.body.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: on || current ? C.ink : C.muted,
-                                ),
-                                child: Text(c),
+                            );
+                          },
+                        ),
+                      const Spacer(),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 400),
+                        child: Container(
+                          key: ValueKey(t.name),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: C.ivory,
+                            borderRadius: BorderRadius.circular(26),
+                            boxShadow: S.card,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Avatar(t.avatar ?? 'onb-age-f-50', size: 40),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          t.name,
+                                          style: T.label.copyWith(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        Stars(count: t.rating, size: 13),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
+                              const SizedBox(height: 10),
+                              Text('“${t.text}”', style: T.bodySm),
                             ],
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-              const Spacer(),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 400),
-                child: Container(
-                  key: ValueKey(t.name),
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: C.ivory,
-                    borderRadius: BorderRadius.circular(26),
-                    boxShadow: S.card,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Avatar(t.avatar ?? 'onb-age-f-50', size: 40),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                t.name,
-                                style: T.label.copyWith(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              Stars(count: t.rating, size: 13),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text('“${t.text}”', style: T.bodySm),
                     ],
                   ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ],
@@ -356,10 +385,10 @@ class _RippleState extends State<_Ripple> with SingleTickerProviderStateMixin {
 
 /// Experience answer → how the plan describes the person (web `LEVEL_WORD`).
 const _levelWord = {
-  'new': 'brand-new',
-  'returning': 'returning',
-  'regular': 'practising',
-  'dedicated': 'dedicated',
+  'new': 'planReady.builtForNew',
+  'returning': 'planReady.builtForReturning',
+  'regular': 'planReady.builtForRegular',
+  'dedicated': 'planReady.builtForDedicated',
 };
 
 /// Phase colours for the "Inside Day 1" bar, in order (web `PHASE_COLORS`).
@@ -395,15 +424,31 @@ class _Result extends StatelessWidget {
         .toList();
     final word = _levelWord[p.experience];
     final profile = [
-      (LucideIcons.sprout, 'Level', level ?? plan.level),
-      (LucideIcons.target, 'Intention', goal ?? 'Overall wellbeing'),
-      (LucideIcons.waves, 'Style', style ?? 'Classic Hatha'),
-      (LucideIcons.clock, 'Daily time', '${p.dailyMinutes} minutes'),
-      (LucideIcons.wind, 'Breathwork', breath ?? 'Not yet'),
+      (LucideIcons.sprout, tr('planReady.level'), level ?? trTag(plan.level)),
+      (
+        LucideIcons.target,
+        tr('planReady.intention'),
+        goal ?? tr('planReady.overallWellbeing'),
+      ),
+      (
+        LucideIcons.waves,
+        tr('planReady.style'),
+        style ?? tr('planReady.classicHatha'),
+      ),
+      (
+        LucideIcons.clock,
+        tr('planReady.dailyTime'),
+        tr('common.minutes', {'n': p.dailyMinutes}),
+      ),
+      (
+        LucideIcons.wind,
+        tr('planReady.breathwork'),
+        breath ?? tr('planReady.notYet'),
+      ),
       (
         LucideIcons.shieldCheck,
-        'Gentler options',
-        gentle.isEmpty ? 'None flagged' : gentle.join(', '),
+        tr('planReady.gentlerOptions'),
+        gentle.isEmpty ? tr('planReady.noneFlagged') : gentle.join(', '),
       ),
     ];
     final week = plan.days.take(7).toList();
@@ -438,7 +483,7 @@ class _Result extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'Practice ready',
+                      tr('planReady.practiceReadyBadge'),
                       style: T.tiny.copyWith(
                         fontWeight: FontWeight.w700,
                         color: C.jadeDeep,
@@ -452,11 +497,14 @@ class _Result extends StatelessWidget {
                 TextSpan(
                   children: [
                     TextSpan(
-                      text:
-                          '${p.name.isNotEmpty ? '${p.name}, your' : 'Your'} practice is ',
+                      text: p.name.isNotEmpty
+                          ? tr('planReady.yourPracticeIsReadyNamed', {
+                              'name': p.name,
+                            })
+                          : tr('planReady.yourPracticeIsReady'),
                     ),
                     TextSpan(
-                      text: 'ready',
+                      text: tr('planReady.ready'),
                       style: T.serifAccent.copyWith(
                         fontSize: 36,
                         color: C.jade,
@@ -468,7 +516,10 @@ class _Result extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Built for ${word != null ? 'a $word yogi' : 'you'}, around ${(goal ?? 'overall wellbeing').toLowerCase()}, in ${p.dailyMinutes} minutes a day.',
+                tr(word ?? 'planReady.builtForYou', {
+                  'goal': lowerInline(goal ?? tr('planReady.overallWellbeing')),
+                  'minutes': p.dailyMinutes,
+                }),
                 style: T.body.c(C.muted),
               ),
               const SizedBox(height: 24),
@@ -495,7 +546,7 @@ class _Result extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Eyebrow(
-                                    'Your course',
+                                    tr('courses.yourCourse'),
                                     color: C.ivory.withValues(alpha: 0.75),
                                   ),
                                   const SizedBox(height: 4),
@@ -524,13 +575,15 @@ class _Result extends StatelessWidget {
                               for (final (i, x) in [
                                 (
                                   LucideIcons.calendarDays,
-                                  '${plan.days.length} days',
+                                  tr('common.days', {'n': plan.days.length}),
                                 ),
                                 (
                                   LucideIcons.clock,
-                                  '${plan.minutesPerDay} min/day',
+                                  tr('planReady.minPerDay', {
+                                    'n': plan.minutesPerDay,
+                                  }),
                                 ),
-                                (LucideIcons.target, plan.level),
+                                (LucideIcons.target, trTag(plan.level)),
                               ].indexed) ...[
                                 if (i > 0)
                                   const VerticalDivider(
@@ -562,7 +615,7 @@ class _Result extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 28),
-              Text('Your yoga profile', style: T.title.s(20)),
+              Text(tr('planReady.yourYogaProfile'), style: T.title.s(20)),
               const SizedBox(height: 14),
               LayoutBuilder(
                 builder: (context, c) {
@@ -618,9 +671,16 @@ class _Result extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Expanded(child: Text('Inside Day 1', style: T.title.s(20))),
+                  Expanded(
+                    child: Text(
+                      tr('planReady.insideDay1'),
+                      style: T.title.s(20),
+                    ),
+                  ),
                   Text(
-                    '${math.max(1, (day1Sec / 60).round())} min of practice',
+                    tr('planReady.minOfPractice', {
+                      'n': math.max(1, (day1Sec / 60).round()),
+                    }),
                     style: T.caption.copyWith(
                       fontWeight: FontWeight.w600,
                       color: C.jade,
@@ -680,10 +740,13 @@ class _Result extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
-                    child: Text('Your first week', style: T.title.s(20)),
+                    child: Text(
+                      tr('planReady.yourFirstWeek'),
+                      style: T.title.s(20),
+                    ),
                   ),
                   Text(
-                    '${plan.minutesPerDay} min a day',
+                    tr('planReady.minADay', {'n': plan.minutesPerDay}),
                     style: T.caption.copyWith(
                       fontWeight: FontWeight.w600,
                       color: C.jade,
@@ -787,7 +850,15 @@ class _Result extends StatelessWidget {
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
-                                          '${d.restore ? 'Restore day · ' : ''}${math.max(1, (totalSeconds(d.items) / 60).round())} min · ${d.items.length} poses',
+                                          tr('planReady.dayMetaPoses', {
+                                            'restore': d.restore,
+                                            'minutes': math.max(
+                                              1,
+                                              (totalSeconds(d.items) / 60)
+                                                  .round(),
+                                            ),
+                                            'poses': d.items.length,
+                                          }),
                                           style: T.tiny.w(FontWeight.w500),
                                         ),
                                       ],
@@ -804,7 +875,7 @@ class _Result extends StatelessWidget {
                                         borderRadius: BorderRadius.circular(99),
                                       ),
                                       child: Text(
-                                        'Today',
+                                        tr('common.today'),
                                         style: T.tiny.copyWith(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w700,
@@ -822,7 +893,7 @@ class _Result extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 18),
-              Text("What you'll practise", style: T.title.s(20)),
+              Text(tr('planReady.whatYoullPractise'), style: T.title.s(20)),
               const SizedBox(height: 14),
               for (final (i, b) in plan.benefits.indexed)
                 Padding(
@@ -858,8 +929,8 @@ class _Result extends StatelessWidget {
         ),
         BottomCta(
           child: Shimmer(
-            child: AsanovaButton(
-              label: 'Start my practice',
+            child: EnsoButton(
+              label: tr('planReady.startMyPractice'),
               onTap: () {
                 app.completeOnboarding(planId);
                 context.go('/paywall?from=onboarding');

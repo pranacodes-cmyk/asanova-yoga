@@ -6,6 +6,7 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../state/app_state.dart';
+import '../i18n/i18n.dart';
 
 /// Daily practice reminders via Android local notifications.
 class NotificationService {
@@ -13,10 +14,11 @@ class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
   static bool _ready = false;
 
-  static const _channel = AndroidNotificationDetails(
-    'asanova_daily',
-    'Daily practice',
-    channelDescription: 'Your gentle daily reminder to practice',
+  // a getter so the channel text follows the current app language
+  static AndroidNotificationDetails get _channel => AndroidNotificationDetails(
+    'enso_daily',
+    tr('notify.channelName'),
+    channelDescription: tr('notify.channelDescription'),
     importance: Importance.high,
     priority: Priority.high,
     // white-on-transparent glyph: Android draws only a small icon's alpha
@@ -68,8 +70,11 @@ class NotificationService {
       await _plugin.cancel(id: 100 + d);
     }
     if (!r.enabled) return;
-    final body =
-        '${name.isNotEmpty ? '$name, your' : 'Your'} $minutes-minute practice is ready 🌿';
+    final body = tr('notify.body', {
+      'hasName': name.isNotEmpty ? 'yes' : 'other',
+      'name': name,
+      'minutes': minutes,
+    });
     final now = tz.TZDateTime.now(tz.local);
     for (final weekday in r.days) {
       // weekday: 0 = Sunday … 6 = Saturday; Dart: 1 = Monday … 7 = Sunday
@@ -88,10 +93,10 @@ class NotificationService {
       try {
         await _plugin.zonedSchedule(
           id: 100 + weekday,
-          title: 'Asanova',
+          title: tr('notify.title'),
           body: body,
           scheduledDate: when,
-          notificationDetails: const NotificationDetails(android: _channel),
+          notificationDetails: NotificationDetails(android: _channel),
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
           matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
         );
@@ -109,10 +114,13 @@ class NotificationService {
     await requestPermission();
     await _plugin.show(
       id: 1,
-      title: 'Asanova',
-      body:
-          '${name.isNotEmpty ? '$name, your' : 'Your'} $minutes-minute practice is ready 🌿',
-      notificationDetails: const NotificationDetails(android: _channel),
+      title: tr('notify.title'),
+      body: tr('notify.body', {
+        'hasName': name.isNotEmpty ? 'yes' : 'other',
+        'name': name,
+        'minutes': minutes,
+      }),
+      notificationDetails: NotificationDetails(android: _channel),
     );
   }
 }

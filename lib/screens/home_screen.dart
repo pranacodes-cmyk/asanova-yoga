@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../data/content.dart';
 import '../data/models.dart';
 import '../logic/logic.dart';
+import '../services/purchase_service.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
@@ -15,6 +16,7 @@ import '../widgets/feedback_sheet.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/tab_shell.dart';
 import '../widgets/ui.dart';
+import '../i18n/i18n.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -123,8 +125,11 @@ class HomeScreen extends StatelessWidget {
                       ),
                       child: Text(
                         planDone
-                            ? 'Plan complete'
-                            : 'Day $dayNumber of ${plan.days.length}',
+                            ? tr('home.planComplete')
+                            : tr('home.dayOfTotal', {
+                                'day': dayNumber,
+                                'total': plan.days.length,
+                              }),
                         style: T.tiny.c(C.ivory),
                       ),
                     ),
@@ -160,15 +165,20 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       planDone
-                          ? 'You did it.'
-                          : 'Day $dayNumber · ${day.title}',
+                          ? tr('home.youDidIt')
+                          : tr('home.dayTitle', {
+                              'day': dayNumber,
+                              'title': day.title,
+                            }),
                       style: T.displayLg.copyWith(
                         fontSize: 29.6,
                         color: C.ivory,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      runSpacing: 2,
                       children: [
                         Text(
                           formatMinutes(totalSeconds(day.items)),
@@ -179,7 +189,7 @@ class HomeScreen extends StatelessWidget {
                         ),
                         const Dot(),
                         Text(
-                          '${day.items.length} poses',
+                          tr('home.poses', {'n': day.items.length}),
                           style: T.caption.copyWith(
                             fontSize: 14,
                             color: C.ivory.withValues(alpha: 0.8),
@@ -187,7 +197,7 @@ class HomeScreen extends StatelessWidget {
                         ),
                         const Dot(),
                         Text(
-                          plan.level,
+                          trTag(plan.level),
                           style: T.caption.copyWith(
                             fontSize: 14,
                             color: C.ivory.withValues(alpha: 0.8),
@@ -231,15 +241,25 @@ class HomeScreen extends StatelessWidget {
                                     color: C.ink,
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    heroLocked
-                                        ? 'Unlock Day $dayNumber'
-                                        : planDone
-                                        ? 'Choose next plan'
-                                        : (todayDone
-                                              ? 'Done · Practice again'
-                                              : "Start today's session"),
-                                    style: T.label.copyWith(fontSize: 17),
+                                  Flexible(
+                                    child: Text(
+                                      heroLocked
+                                          ? tr('home.unlockDay', {
+                                              'day': dayNumber,
+                                            })
+                                          : planDone
+                                          ? tr('home.chooseNextPlan')
+                                          : (todayDone
+                                                ? tr(
+                                                    'home.doneTapPracticeAgain',
+                                                  )
+                                                : tr(
+                                                    'home.startTodaysSession',
+                                                  )),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: T.label.copyWith(fontSize: 17),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -251,7 +271,7 @@ class HomeScreen extends StatelessWidget {
                           icon: LucideIcons.arrowRight,
                           tone: Tone.dark,
                           size: 56,
-                          label: 'View plan',
+                          label: tr('home.viewPlan'),
                           onTap: () => context.push('/plan/${plan.id}'),
                         ),
                       ],
@@ -353,7 +373,7 @@ class HomeScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Eyebrow(
-                          'Mindful habit',
+                          tr('home.mindfulHabit'),
                           color: challengeState == 'done'
                               ? C.ivory.withValues(alpha: 0.7)
                               : C.terracotta,
@@ -368,7 +388,7 @@ class HomeScreen extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           challengeState == 'done'
-                              ? 'Beautifully done. Small steps, big change.'
+                              ? tr('home.habitDone')
                               : challenge.description,
                           style: T.caption.copyWith(
                             fontSize: 14,
@@ -399,8 +419,8 @@ class HomeScreen extends StatelessWidget {
                     ),
                     child: Text(
                       challengeState == 'accepted'
-                          ? 'Mark as done'
-                          : 'Accept challenge',
+                          ? tr('home.markAsDone')
+                          : tr('home.acceptChallenge'),
                       style: T.label.c(C.ivory),
                     ),
                   ),
@@ -417,99 +437,26 @@ class HomeScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionHeader(
-            leadFree ? 'More free sessions' : 'Quick sessions',
-            action: 'See all',
+            leadFree
+                ? tr('home.moreFreeSessions')
+                : tr('singleClasses.quickSessions'),
+            action: tr('common.seeAll'),
             onAction: () => context.go('/courses?view=classes'),
           ),
           HScroll(children: [for (final q in c.quickSessions) QuickCard(q)]),
         ],
       ),
     );
-    final List<Widget> upsell = [
-      const SizedBox(height: 28),
+    // The one Plus offer this person was shown on the paywall — never a different deal.
+    final List<Widget> offerCard = [
+      const SizedBox(height: 16),
       Reveal(
-        delay: 0.24,
+        delay: 0.13,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Pressable(
+          child: _PlusOfferCard(
+            variant: paywallVariant('home', 'standard', app.paywallOffer),
             onTap: () => context.push('/paywall?from=home'),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: C.ink,
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: S.card,
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned(
-                    right: -60,
-                    top: -60,
-                    child: Container(
-                      width: 144,
-                      height: 144,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: C.gold.withValues(alpha: 0.25),
-                            blurRadius: 50,
-                            spreadRadius: 10,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          gradient: G.gold,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          LucideIcons.crown,
-                          size: 24,
-                          color: C.ink,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Unlock every course & meditation',
-                              style: T.label.copyWith(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: C.ivory,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Ancient paths, Yoga Nidra & more with Plus',
-                              style: T.caption.c(
-                                C.ivory.withValues(alpha: 0.7),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        LucideIcons.arrowRight,
-                        size: 20,
-                        color: C.gold,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
           ),
         ),
       ),
@@ -535,23 +482,23 @@ class HomeScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionHeader(
-            'Breathe now',
-            action: 'All breathwork',
+            tr('home.breatheNow'),
+            action: tr('home.allBreathwork'),
             onAction: () => context.go('/meditate'),
           ),
           HScroll(
             gap: 12,
             children: [
               _BreathTile(
-                title: 'Breathing coach',
-                meta: '1–5 min · free',
+                title: tr('meditate.breathingCoach'),
+                meta: tr('home.breathingCoachMeta'),
                 coach: true,
                 onTap: () => context.push('/breathe'),
               ),
               for (final m in breaths)
                 _BreathTile(
                   title: m.title.split(':').first,
-                  meta: '${m.minutes} min',
+                  meta: tr('common.minShort', {'n': m.minutes}),
                   image: m.image,
                   locked: isMeditationLocked(m.id, premium),
                   onTap: () => context.push(
@@ -585,19 +532,19 @@ class HomeScreen extends StatelessWidget {
                     children: [
                       const Icon(LucideIcons.flower2, size: 13, color: C.gold),
                       const SizedBox(width: 6),
-                      Eyebrow('Classical yoga', color: C.gold),
+                      Eyebrow(tr('home.classicalYoga'), color: C.gold),
                     ],
                   ),
                 ),
                 SectionHeader(
-                  'Ancient paths',
-                  action: 'See all',
+                  trTag('Ancient paths'),
+                  action: tr('common.seeAll'),
                   onAction: () => context.go('/courses'),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 14),
                   child: Text(
-                    'Chakras, the eight limbs, classical Hatha, Ashtanga and Ayurveda — taught the traditional way.',
+                    tr('home.ancientPathsDesc'),
                     style: T.caption.copyWith(height: 1.45),
                   ),
                 ),
@@ -617,7 +564,7 @@ class HomeScreen extends StatelessWidget {
             ),
           );
 
-    return AsanovaScaffold(
+    return EnsoScaffold(
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: EdgeInsets.only(
@@ -637,18 +584,36 @@ class HomeScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Eyebrow(DateFormat('EEEE, MMM d').format(now)),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${greeting(now.hour)}${name.isNotEmpty ? ',' : ''}',
-                          style: T.displayMd,
+                        Eyebrow(
+                          DateFormat('EEEE, MMM d', appLocale).format(now),
                         ),
-                        Text(
-                          name.isNotEmpty ? name : 'friend',
-                          style: T.serifAccent.copyWith(
-                            fontSize: 30,
-                            color: C.jadeDeep,
-                            height: 1.1,
+                        const SizedBox(height: 6),
+                        // long greetings (Japanese, German) and names shrink to stay on one line
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            tr('home.greetingLine', {
+                              'greeting': greeting(now.hour),
+                              'hasName': name.isNotEmpty ? 'yes' : 'no',
+                            }),
+                            maxLines: 1,
+                            softWrap: false,
+                            style: T.displayMd,
+                          ),
+                        ),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            name.isNotEmpty ? name : tr('home.friendFallback'),
+                            maxLines: 1,
+                            softWrap: false,
+                            style: T.serifAccent.copyWith(
+                              fontSize: 30,
+                              color: C.jadeDeep,
+                              height: 1.1,
+                            ),
                           ),
                         ),
                       ],
@@ -732,6 +697,7 @@ class HomeScreen extends StatelessWidget {
               planHero,
               const SizedBox(height: 16),
               rings,
+              if (!premium) ...offerCard,
               const SizedBox(height: 32),
               breatheNow,
               const SizedBox(height: 28),
@@ -744,7 +710,6 @@ class HomeScreen extends StatelessWidget {
               ancientShelf,
               const SizedBox(height: 28),
               habit,
-              if (!premium) ...upsell,
               const SizedBox(height: 28),
               const FeedbackInvite(),
             ] else ...[
@@ -754,16 +719,26 @@ class HomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: starter != null && starterDay != null
                       ? _FreeHero(
-                          title:
-                              'Day $starterDay · ${starter.days[starterDay - 1].title}',
+                          title: tr('home.dayTitle', {
+                            'day': starterDay,
+                            'title': starter.days[starterDay - 1].title,
+                          }),
                           image: starter.image,
-                          eyebrow:
-                              '${starter.title} · Day $starterDay of ${starter.days.length}',
-                          meta:
-                              '${formatMinutes(totalSeconds(starter.days[starterDay - 1].items))}  ·  ${starter.days[starterDay - 1].items.length} poses  ·  ${starter.level}',
+                          eyebrow: tr('home.planDayOfTotal', {
+                            'title': starter.title,
+                            'day': starterDay,
+                            'total': starter.days.length,
+                          }),
+                          meta: tr('home.freeHeroMeta', {
+                            'minutes': formatMinutes(
+                              totalSeconds(starter.days[starterDay - 1].items),
+                            ),
+                            'n': starter.days[starterDay - 1].items.length,
+                            'level': trTag(starter.level),
+                          }),
                           cta: starterDay == 1
-                              ? 'Start your free course'
-                              : 'Continue · Day $starterDay',
+                              ? tr('home.startYourFreeCourse')
+                              : tr('plan.continueDay', {'day': starterDay}),
                           progress: (starterDay - 1) / starter.days.length,
                           onTap: () => context.push(
                             '/session/${planSessionId(starter.id, starterDay)}',
@@ -772,10 +747,12 @@ class HomeScreen extends StatelessWidget {
                       : _FreeHero(
                           title: freeQ.title,
                           image: freeQ.image,
-                          eyebrow: "Today's free session",
-                          meta:
-                              '${formatMinutes(totalSeconds(freeQ.items))}  ·  ${freeQ.items.length} poses',
-                          cta: 'Start free session',
+                          eyebrow: tr('home.todaysFreeSession'),
+                          meta: tr('home.freeSessionMeta', {
+                            'minutes': formatMinutes(totalSeconds(freeQ.items)),
+                            'n': freeQ.items.length,
+                          }),
+                          cta: tr('home.startFreeSession'),
                           onTap: () =>
                               context.push('/session/quick:${freeQ.id}'),
                         ),
@@ -783,6 +760,7 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               rings,
+              if (!premium) ...offerCard,
               const SizedBox(height: 32),
               breatheNow,
               const SizedBox(height: 28),
@@ -794,7 +772,6 @@ class HomeScreen extends StatelessWidget {
               planHero,
               const SizedBox(height: 16),
               dailyCard,
-              ...upsell,
               const SizedBox(height: 36),
               ancientShelf,
               const SizedBox(height: 28),
@@ -811,8 +788,10 @@ class HomeScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SectionHeader(
-                    evening ? 'Wind down tonight' : 'Start with stillness',
-                    action: 'Meditate',
+                    evening
+                        ? tr('home.windDownTonight')
+                        : tr('home.startWithStillness'),
+                    action: tr('tabs.meditate'),
                     onAction: () => context.go('/meditate'),
                   ),
                   Padding(
@@ -860,7 +839,10 @@ class HomeScreen extends StatelessWidget {
                                       ),
                                       const SizedBox(width: 4),
                                       Eyebrow(
-                                        '${med.category} · ${med.minutes} min',
+                                        tr('guide.tagMinutes', {
+                                          'tag': trTag(med.category),
+                                          'n': med.minutes,
+                                        }),
                                         color: C.ivory.withValues(alpha: 0.7),
                                       ),
                                     ],
@@ -949,8 +931,8 @@ class HomeScreen extends StatelessWidget {
                                 color: C.jade.withValues(alpha: 0.5),
                               ),
                               const SizedBox(width: 10),
-                              const Eyebrow(
-                                'Wisdom for today',
+                              Eyebrow(
+                                tr('home.wisdomForToday'),
                                 color: C.jadeDeep,
                               ),
                             ],
@@ -966,7 +948,9 @@ class HomeScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            '— ${quote.author}',
+                            tr('home.quoteAttribution', {
+                              'author': quote.author,
+                            }),
                             style: T.caption.copyWith(
                               fontWeight: FontWeight.w600,
                               color: C.jadeDeep.withValues(alpha: 0.7),
@@ -1007,7 +991,7 @@ class HomeScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Eyebrow("Teacher's tip", color: C.jade),
+                            Eyebrow(tr('home.teachersTip'), color: C.jade),
                             const SizedBox(height: 4),
                             Text(
                               tip.title,
@@ -1042,7 +1026,7 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SectionHeader('Learn the tradition'),
+                  SectionHeader(tr('home.learnTheTradition')),
                   HScroll(
                     gap: 14,
                     children: [
@@ -1077,7 +1061,7 @@ class HomeScreen extends StatelessWidget {
                                             vertical: 4,
                                           ),
                                           child: Text(
-                                            g.tag.toUpperCase(),
+                                            trTag(g.tag).toUpperCase(),
                                             style: T.tiny.copyWith(
                                               fontSize: 10,
                                               letterSpacing: 1,
@@ -1114,9 +1098,15 @@ class HomeScreen extends StatelessWidget {
                                             color: C.muted,
                                           ),
                                           const SizedBox(width: 4),
-                                          Text(
-                                            '${g.minutes} min read',
-                                            style: T.tiny.w(FontWeight.w500),
+                                          Flexible(
+                                            child: Text(
+                                              tr('guide.minRead', {
+                                                'n': g.minutes,
+                                              }),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: T.tiny.w(FontWeight.w500),
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -1138,7 +1128,7 @@ class HomeScreen extends StatelessWidget {
                 delay: 0.6,
                 dy: 0,
                 child: Text(
-                  "One breath. One practice. A little more you.",
+                  tr('home.footerLine'),
                   textAlign: TextAlign.center,
                   style: T.serifAccent.copyWith(fontSize: 18.4, color: C.muted),
                 ),
@@ -1183,7 +1173,7 @@ class _Intention extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Eyebrow(
-                  "Today's intention",
+                  tr('home.todaysIntention'),
                   color: C.jadeDeep.withValues(alpha: 0.7),
                 ),
                 const SizedBox(height: 2),
@@ -1222,8 +1212,9 @@ class _PracticeRhythm extends StatelessWidget {
   final DateTime weekStart, now;
   final Set<String> practisedDays;
 
-  static String _hm(int minutes) =>
-      minutes >= 60 ? '${minutes ~/ 60}h ${minutes % 60}m' : '${minutes}m';
+  static String _hm(int minutes) => minutes >= 60
+      ? tr('home.hoursMinutesShort', {'h': minutes ~/ 60, 'm': minutes % 60})
+      : tr('medPlayer.sleepMinutesShort', {'n': minutes});
 
   @override
   Widget build(BuildContext context) {
@@ -1240,7 +1231,7 @@ class _PracticeRhythm extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Eyebrow('Your practice today', color: C.jade),
+                    Eyebrow(tr('home.yourPracticeToday'), color: C.jade),
                     const SizedBox(height: 6),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -1248,9 +1239,12 @@ class _PracticeRhythm extends StatelessWidget {
                       children: [
                         Text('$minutesToday', style: T.displayMd.tab),
                         const SizedBox(width: 6),
-                        Text(
-                          'of $minuteGoal min',
-                          style: T.caption.copyWith(fontSize: 14),
+                        Flexible(
+                          child: Text(
+                            tr('home.ofGoalMin', {'n': minuteGoal}),
+                            maxLines: 2,
+                            style: T.caption.copyWith(fontSize: 14),
+                          ),
                         ),
                       ],
                     ),
@@ -1276,7 +1270,7 @@ class _PracticeRhythm extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '$streak-day streak',
+                      tr('home.streakDayStreak', {'n': streak}),
                       style: T.tiny.copyWith(
                         fontWeight: FontWeight.w700,
                         color: C.jadeDeep,
@@ -1295,18 +1289,20 @@ class _PracticeRhythm extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             left <= 0
-                ? 'Daily goal reached. Beautifully done.'
-                : '$left min to your daily goal',
+                ? tr('home.dailyGoalReached')
+                : tr('home.minToDailyGoal', {'n': left}),
             style: T.tiny.w(FontWeight.w500),
           ),
           const SizedBox(height: 18),
           Row(
             children: [
-              Expanded(child: _Stat('$weekSessions', 'this week')),
+              Expanded(child: _Stat('$weekSessions', tr('home.statThisWeek'))),
               Container(width: 1, height: 34, color: C.line),
-              Expanded(child: _Stat(_hm(totalMinutes), 'practised')),
+              Expanded(
+                child: _Stat(_hm(totalMinutes), tr('home.statPractised')),
+              ),
               Container(width: 1, height: 34, color: C.line),
-              Expanded(child: _Stat('$best', 'best streak')),
+              Expanded(child: _Stat('$best', tr('home.statBestStreak'))),
             ],
           ),
           const SizedBox(height: 18),
@@ -1316,63 +1312,69 @@ class _PracticeRhythm extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               for (var i = 0; i < 7; i++)
-                Builder(
-                  builder: (_) {
-                    final d = addDays(weekStart, i);
-                    final k = dateKey(d);
-                    final done = practisedDays.contains(k);
-                    final isToday = k == today;
-                    final future = d.isAfter(now) && !isToday;
-                    return Column(
-                      children: [
-                        Text(
-                          weekLetters[i],
-                          style: T.tiny.copyWith(
-                            fontSize: 11,
-                            color: isToday ? C.jade : C.muted,
+                Expanded(
+                  child: Builder(
+                    builder: (_) {
+                      final d = addDays(weekStart, i);
+                      final k = dateKey(d);
+                      final done = practisedDays.contains(k);
+                      final isToday = k == today;
+                      final future = d.isAfter(now) && !isToday;
+                      return Column(
+                        children: [
+                          Text(
+                            weekLetters[i],
+                            style: T.tiny.copyWith(
+                              fontSize: 11,
+                              color: isToday ? C.jade : C.muted,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          width: 36,
-                          height: 36,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: done
-                                ? C.jade
-                                : (isToday || future
-                                      ? Colors.transparent
-                                      : C.sand),
-                            border: isToday && !done
-                                ? Border.all(color: C.jade, width: 2)
-                                : null,
+                          const SizedBox(height: 6),
+                          // seven days always fit: the dots shrink on the narrowest phones
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: done
+                                    ? C.jade
+                                    : (isToday || future
+                                          ? Colors.transparent
+                                          : C.sand),
+                                border: isToday && !done
+                                    ? Border.all(color: C.jade, width: 2)
+                                    : null,
+                              ),
+                              child: done
+                                  ? const Icon(
+                                      LucideIcons.check,
+                                      size: 16,
+                                      color: C.ivory,
+                                    )
+                                  : Text(
+                                      '${d.day}',
+                                      style: T.caption
+                                          .copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            color: isToday
+                                                ? C.jadeDeep
+                                                : (future
+                                                      ? C.muted.withValues(
+                                                          alpha: 0.6,
+                                                        )
+                                                      : C.muted),
+                                          )
+                                          .tab,
+                                    ),
+                            ),
                           ),
-                          child: done
-                              ? const Icon(
-                                  LucideIcons.check,
-                                  size: 16,
-                                  color: C.ivory,
-                                )
-                              : Text(
-                                  '${d.day}',
-                                  style: T.caption
-                                      .copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: isToday
-                                            ? C.jadeDeep
-                                            : (future
-                                                  ? C.muted.withValues(
-                                                      alpha: 0.6,
-                                                    )
-                                                  : C.muted),
-                                      )
-                                      .tab,
-                                ),
-                        ),
-                      ],
-                    );
-                  },
+                        ],
+                      );
+                    },
+                  ),
                 ),
             ],
           ),
@@ -1527,7 +1529,7 @@ class _PoseOfDay extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Eyebrow('Pose of the day', color: C.jade),
+                  Eyebrow(tr('home.poseOfTheDay'), color: C.jade),
                   const SizedBox(height: 6),
                   Text(
                     e.baseName,
@@ -1549,7 +1551,7 @@ class _PoseOfDay extends StatelessWidget {
                   ],
                   const SizedBox(height: 8),
                   Text(
-                    e.focus.take(3).join(' · '),
+                    e.focus.take(3).map((f) => trTag(f)).join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: T.caption,
@@ -1557,9 +1559,13 @@ class _PoseOfDay extends StatelessWidget {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      Text(
-                        'Learn the pose',
-                        style: T.label.copyWith(fontSize: 14, color: C.jade),
+                      Flexible(
+                        child: Text(
+                          tr('home.learnThePose'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: T.label.copyWith(fontSize: 14, color: C.jade),
+                        ),
                       ),
                       const SizedBox(width: 4),
                       const Icon(
@@ -1622,14 +1628,18 @@ class _DailyPracticeCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Eyebrow(
-                        'Daily challenge · Day $day',
+                        tr('home.dailyChallengeDay', {'day': day}),
                         color: C.terracotta,
                       ),
                       const SizedBox(height: 4),
                       Text(plan.title, style: T.title),
                       const SizedBox(height: 2),
                       Text(
-                        '${formatMinutes(totalSeconds(d.items))} · ${d.items.length} poses${hasAffirmation ? ' · affirmation' : ''}',
+                        tr('home.dailyCardMeta', {
+                          'minutes': formatMinutes(totalSeconds(d.items)),
+                          'n': d.items.length,
+                          'affirmation': hasAffirmation ? 'yes' : 'no',
+                        }),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: T.caption,
@@ -1685,16 +1695,23 @@ class _DailyPracticeCard extends StatelessWidget {
                           : (doneToday ? C.jadeDeep : C.ivory),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      locked
-                          ? 'Unlock Day $day with Asanova Plus'
-                          : (doneToday
-                                ? 'Done today · Practice Day $day'
-                                : 'Start Day $day · ${d.title}'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: T.label.c(
-                        locked ? C.ink : (doneToday ? C.jadeDeep : C.ivory),
+                    Flexible(
+                      child: Text(
+                        locked
+                            ? tr('plan.unlockDayWithPlus', {'day': day})
+                            : (doneToday
+                                  ? tr('home.doneTodayPracticeDay', {
+                                      'day': day,
+                                    })
+                                  : tr('home.startDayTitle', {
+                                      'day': day,
+                                      'title': d.title,
+                                    })),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: T.label.c(
+                          locked ? C.ink : (doneToday ? C.jadeDeep : C.ivory),
+                        ),
                       ),
                     ),
                   ],
@@ -1759,7 +1776,10 @@ class _FreeHero extends StatelessWidget {
                           color: C.jadeDeep,
                         ),
                         const SizedBox(width: 5),
-                        Text('Made for you', style: T.tiny.c(C.jadeDeep)),
+                        Text(
+                          tr('home.madeForYou'),
+                          style: T.tiny.c(C.jadeDeep),
+                        ),
                       ],
                     ),
                   ),
@@ -1769,7 +1789,7 @@ class _FreeHero extends StatelessWidget {
                       horizontal: 12,
                       vertical: 6,
                     ),
-                    child: Text('Free', style: T.tiny.c(C.ivory)),
+                    child: Text(tr('common.free'), style: T.tiny.c(C.ivory)),
                   ),
                 ],
               ),
@@ -1823,7 +1843,14 @@ class _FreeHero extends StatelessWidget {
                           color: C.ink,
                         ),
                         const SizedBox(width: 8),
-                        Text(cta, style: T.label.copyWith(fontSize: 17)),
+                        Flexible(
+                          child: Text(
+                            cta,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: T.label.copyWith(fontSize: 17),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1850,12 +1877,156 @@ class _MadeForYouHeader extends StatelessWidget {
             children: [
               const Icon(LucideIcons.sparkles, size: 13, color: C.gold),
               const SizedBox(width: 6),
-              Eyebrow('Your personal plan', color: C.gold),
+              Eyebrow(tr('home.yourPersonalPlan'), color: C.gold),
             ],
           ),
           const SizedBox(height: 4),
-          Text('Built from your answers', style: T.title.s(20)),
+          Text(tr('home.builtFromYourAnswers'), style: T.title.s(20)),
         ],
+      ),
+    );
+  }
+}
+
+/// The one Plus offer this person was shown on the paywall (normal price, trial, gift or the
+/// lower price revealed after closing it) — never a different deal. Mirrors web `PlusOfferCard`.
+class _PlusOfferCard extends StatelessWidget {
+  const _PlusOfferCard({required this.variant, required this.onTap});
+  final String variant;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final offer = PurchaseService.localized(switch (variant) {
+      'exit' => exitOffer,
+      'gift' => giftOffers.first,
+      'regular' => regularOffers.first,
+      _ => standardOffers.first,
+    });
+    final title = switch (variant) {
+      'exit' => tr('paywall.lowerPriceReady'),
+      'regular' => tr('paywall.trialReady', {'days': offer.trialDays}),
+      _ => tr('home.unlockEveryCourse'),
+    }.replaceAll('\n', ' ');
+    final detail = switch (variant) {
+      'exit' => tr('paywall.lowerPriceDetail', {'price': offer.price}),
+      'regular' => tr('paywall.trialDetail', {'days': offer.trialDays}),
+      _ =>
+        '${offer.price} ${tr('paywall.perPeriodLower', {'period': offer.period})}',
+    };
+    final cta = switch (variant) {
+      'exit' => tr('paywall.seeLowerPrice'),
+      'regular' => tr('paywall.startTrialDays', {'days': offer.trialDays}),
+      _ => tr('paywall.continueWith', {'title': 'Asanova Plus'}),
+    };
+    return Semantics(
+      button: true,
+      label: '$title. $detail',
+      excludeSemantics: true,
+      child: Pressable(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: C.ink,
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: S.card,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              Positioned(
+                right: -50,
+                top: -50,
+                child: Container(
+                  width: 150,
+                  height: 150,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: C.gold.withValues(alpha: 0.22),
+                        blurRadius: 60,
+                        spreadRadius: 12,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            gradient: G.gold,
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: const Icon(
+                            LucideIcons.crown,
+                            size: 14,
+                            color: C.ink,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            tr('paywall.plusBadge'),
+                            style: T.eyebrow.c(C.goldSoft),
+                          ),
+                        ),
+                        if (offer.strike != null)
+                          Text(
+                            offer.strike!,
+                            style: T.caption.copyWith(
+                              color: C.ivory.withValues(alpha: 0.55),
+                              decoration: TextDecoration.lineThrough,
+                              decorationColor: C.ivory.withValues(alpha: 0.55),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      title,
+                      style: T.title.copyWith(fontSize: 20, color: C.ivory),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      detail,
+                      style: T.bodySm.c(C.ivory.withValues(alpha: 0.78)),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      height: 48,
+                      width: double.infinity,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        gradient: G.gold,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        cta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: T.label.copyWith(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: C.ink,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

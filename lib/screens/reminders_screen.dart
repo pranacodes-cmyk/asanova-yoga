@@ -6,11 +6,12 @@ import '../services/notification_service.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
-import '../widgets/asanova_switch.dart';
+import '../widgets/enso_switch.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/toast.dart';
 import '../widgets/ui.dart';
 import 'onboarding_screen.dart';
+import '../i18n/i18n.dart';
 
 class RemindersScreen extends StatelessWidget {
   const RemindersScreen({super.key});
@@ -35,7 +36,7 @@ class RemindersScreen extends StatelessWidget {
       _reschedule(app);
     }
 
-    return AsanovaScaffold(
+    return EnsoScaffold(
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: EdgeInsets.only(
@@ -54,12 +55,9 @@ class RemindersScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Daily reminder', style: T.displayLg),
+                  Text(tr('reminders.title'), style: T.displayLg),
                   const SizedBox(height: 4),
-                  Text(
-                    'A gentle nudge at the moment that suits you.',
-                    style: T.bodySm.c(C.muted),
-                  ),
+                  Text(tr('reminders.subtitle'), style: T.bodySm.c(C.muted)),
                 ],
               ),
             ),
@@ -96,14 +94,19 @@ class RemindersScreen extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Remind me to practice', style: T.label),
-                              Text(r.enabled ? 'On' : 'Off', style: T.caption),
+                              Text(tr('reminders.remindMe'), style: T.label),
+                              Text(
+                                r.enabled
+                                    ? tr('reminders.on')
+                                    : tr('reminders.off'),
+                                style: T.caption,
+                              ),
                             ],
                           ),
                         ),
-                        AsanovaSwitch(
+                        EnsoSwitch(
                           value: r.enabled,
-                          label: 'Reminders',
+                          label: tr('reminders.switchLabel'),
                           onChanged: (v) async {
                             app.setReminders((x) => x.enabled = v);
                             if (v) {
@@ -134,46 +137,49 @@ class RemindersScreen extends StatelessWidget {
                                       icon: LucideIcons.minus,
                                       tone: Tone.sand,
                                       size: 48,
-                                      label: 'Earlier',
+                                      label: tr('reminders.earlier'),
                                       onTap: () => shift(-15),
                                     ),
                                     Expanded(
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.baseline,
-                                        textBaseline: TextBaseline.alphabetic,
-                                        children: [
-                                          Text(
-                                            t.time,
-                                            style: T.displayXl
-                                                .copyWith(fontSize: 56)
-                                                .tab,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            t.ampm,
-                                            style: T.title.copyWith(
-                                              color: C.muted,
-                                              fontWeight: FontWeight.w600,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.baseline,
+                                          textBaseline: TextBaseline.alphabetic,
+                                          children: [
+                                            Text(
+                                              t.time,
+                                              style: T.displayXl
+                                                  .copyWith(fontSize: 56)
+                                                  .tab,
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              t.ampm,
+                                              style: T.title.copyWith(
+                                                color: C.muted,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                     CircleBtn(
                                       icon: LucideIcons.plus,
                                       tone: Tone.sand,
                                       size: 48,
-                                      label: 'Later',
+                                      label: tr('reminders.later'),
                                       onTap: () => shift(15),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 24),
                                 Text(
-                                  'Repeat on',
+                                  tr('reminders.repeatOn'),
                                   style: T.caption.copyWith(
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -193,7 +199,7 @@ class RemindersScreen extends StatelessWidget {
                           Padding(
                             padding: const EdgeInsets.only(left: 8, bottom: 8),
                             child: Text(
-                              'PREVIEW',
+                              tr('reminders.preview'),
                               style: T.tiny.copyWith(
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1.2,
@@ -206,8 +212,8 @@ class RemindersScreen extends StatelessWidget {
                             time: '${t.time} ${t.ampm}',
                           ),
                           const SizedBox(height: 16),
-                          AsanovaButton(
-                            label: 'Send a test notification',
+                          EnsoButton(
+                            label: tr('reminders.sendTest'),
                             icon: LucideIcons.bell,
                             variant: BtnVariant.light,
                             size: BtnSize.md,
@@ -217,8 +223,8 @@ class RemindersScreen extends StatelessWidget {
                                 minutes: app.profile.dailyMinutes,
                               );
                               Toast.show(
-                                'Test sent',
-                                description: 'Check your notification shade.',
+                                tr('reminders.testSentTitle'),
+                                description: tr('reminders.testSentDesc'),
                               );
                             },
                           ),

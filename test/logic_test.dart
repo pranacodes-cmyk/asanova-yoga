@@ -2,11 +2,13 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:asanova/data/content.dart';
-import 'package:asanova/data/models.dart';
-import 'package:asanova/logic/coach.dart';
-import 'package:asanova/logic/logic.dart';
-import 'package:asanova/state/app_state.dart';
+import 'package:enso/data/content.dart';
+import 'package:enso/data/models.dart';
+import 'package:enso/i18n/i18n.dart';
+import 'package:enso/logic/coach.dart';
+import 'package:enso/logic/lesson_media.dart';
+import 'package:enso/logic/logic.dart';
+import 'package:enso/state/app_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 HistoryEntry entry(DateTime d) => HistoryEntry(
@@ -406,22 +408,22 @@ void main() {
   group('app state', () {
     test('completing a plan day records progress once', () {
       final s = AppState.memory();
-      s.completeOnboarding('yoga-foundations-21');
+      s.completeOnboarding('standing-tai-chi');
       final e = HistoryEntry(
         id: 'x',
-        sessionId: 'plan:yoga-foundations-21:1',
+        sessionId: 'plan:standing-tai-chi:1',
         title: 'Day 1',
         kind: 'workout',
-        image: 'cov-yoga-foundations-21',
+        image: 'prog-standing-taichi',
         completedAt: DateTime.now(),
         durationSec: 600,
         kcal: 30,
-        planId: 'yoga-foundations-21',
+        planId: 'standing-tai-chi',
         day: 1,
       );
       s.completeSession(e);
       s.completeSession(e);
-      expect(s.planProgress['yoga-foundations-21']!.completedDays, [1]);
+      expect(s.planProgress['standing-tai-chi']!.completedDays, [1]);
       expect(s.history.length, 2);
     });
     test('state survives a JSON round trip', () {
@@ -485,12 +487,105 @@ void main() {
   });
 
   group('demo films', () {
-    test('every movement has its own bundled demo film', () {
+    final bundled = jsonDecode(
+      File('test/bundled-media.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    final bundledFilms = (bundled['films'] as List).cast<String>();
+    test('every movement and flow has a film on the media server', () {
       final moves = Content.i.exercises.where((e) => !e.isAffirmation).toList();
       expect(moves.every((e) => e.demo != null), isTrue);
-      for (final d in moves.map((e) => e.demo!).toSet()) {
-        expect(File('assets/video/$d.mp4').existsSync(), isTrue, reason: d);
+      final uploaded = jsonDecode(
+        File('test/remote-media.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      for (final d in {
+        ...moves.map((e) => e.demo!),
+        for (final f in Content.i.flows)
+          if (f.demo != null) f.demo!,
+        kTutorWelcomeFilm,
+        kTutorCongratsFilm,
+      }) {
+        expect(uploaded.containsKey(filmPath(d)), isTrue, reason: d);
       }
+    });
+    test('the app bundles only the onboarding, paywall and tutor films', () {
+      expect(bundledFilms, contains(kTutorWelcomeFilm));
+      expect(bundledFilms, contains(kTutorCongratsFilm));
+      expect(bundledFilms.length, lessThanOrEqualTo(12));
+      final shipped =
+          Directory('assets/video')
+              .listSync()
+              .map((f) => f.uri.pathSegments.last)
+              .where((n) => n.endsWith('.mp4'))
+              .map((n) => n.substring(0, n.length - 4))
+              .toList()
+            ..sort();
+      expect(shipped, [...bundledFilms]..sort());
+    });
+  });
+
+  group('lesson media', () {
+    late Session day1;
+    const fresh = JourneyOptions(known: {}, demos: true, welcome: true);
+    setUp(() => day1 = resolveSession('plan:yoga-starter-7:1')!);
+    test('a first course day downloads the tutor welcome first and her celebration', () {
+      final paths = sessionMediaPaths(day1, fresh, Content.i.voice);
+      expect(paths.first, 'video/yf-tutor-welcome.mp4');
+      expect(paths, contains('video/yf-tutor-congrats.mp4'));
+      expect(paths.toSet().length, paths.length);
+    });
+    test(
+      'later days skip the welcome film and only fetch clips that exist',
+      () {
+        final paths = sessionMediaPaths(
+          day1,
+          const JourneyOptions(known: {}, demos: true, welcome: false),
+          Content.i.voice,
+        );
+        expect(paths, isNot(contains('video/yf-tutor-welcome.mp4')));
+        for (final p in paths.where((x) => x.startsWith('voice/'))) {
+          expect(
+            Content.i.voice.contains(p.substring(6, p.length - 4)),
+            isTrue,
+          );
+        }
+      },
+    );
+    test(
+      'download progress is a whole percent and empty downloads are complete',
+      () {
+        expect(downloadPercent(0, 0), 100);
+        expect(downloadPercent(1, 3), 33);
+        expect(downloadPercent(5, 3), 100);
+      },
+    );
+    test('every line a guided lesson speaks has a natural-voice clip', () {
+      final blocked = (jsonDecode(
+        File('test/voice-blocked.json').readAsStringSync(),
+      ) as Map).keys.toSet();
+      final missing = <String>{};
+      final ids = [
+        for (final p in Content.i.plans)
+          for (final d in p.days) planSessionId(p.id, d.day),
+        for (final q in Content.i.quickSessions) 'quick:${q.id}',
+      ];
+      for (final id in ids) {
+        final s = resolveSession(id)!;
+        final plan = s.planId == null ? null : Content.i.plan(s.planId!);
+        final welcome =
+            plan != null &&
+            s.day != null &&
+            shouldWelcome(plan, s.day!, const []);
+        for (final line in sessionLines(
+          s,
+          JourneyOptions(known: const {}, demos: true, welcome: welcome),
+        )) {
+          final k = voiceKey(line);
+          if (!Content.i.voice.contains(k) && !blocked.contains(k)) {
+            missing.add(line);
+          }
+        }
+      }
+      expect(missing, isEmpty);
     });
   });
 
@@ -498,7 +593,7 @@ void main() {
     test('hashes lines identically across clients', () {
       expect(voiceKey('Breathe in'), 'v1c9247bd');
       expect(voiceKey('Session complete. Beautifully done.'), 'vd714375a');
-      expect(voiceKey('Yoga · योग — calm'), 'veb0a5329');
+      expect(voiceKey('Tai Chi · 太極 — calm'), 'vf69244b6');
     });
     test('every line the players speak has a natural-voice clip or recorded provider refusal', () {
       final blockedFile =
@@ -545,7 +640,13 @@ void main() {
         check(CoachLines.guide(g));
       }
       expect(missing, isEmpty);
-      for (final k in Content.i.voice) {
+      // lesson voice streams from the media server; the onboarding and breath cues ship inside
+      final bundledVoice =
+          ((jsonDecode(File('test/bundled-media.json').readAsStringSync())
+                      as Map)['voice']
+                  as List)
+              .cast<String>();
+      for (final k in bundledVoice) {
         expect(File('assets/voice/$k.m4a').existsSync(), isTrue, reason: k);
       }
     });
@@ -564,16 +665,35 @@ void main() {
   group('paywall offer', () {
     test('onboarding shows the requested variant', () {
       expect(paywallVariant('onboarding', 'exit', null), 'exit');
+      expect(paywallVariant('onboarding', 'standard', null), 'standard');
     });
-    test('in the app the last onboarding offer is repeated', () {
-      expect(paywallVariant('plan', 'regular', 'exit'), 'exit');
-      expect(paywallVariant('home', 'regular', 'gift'), 'gift');
-      expect(paywallVariant('home', 'regular', null), 'regular');
+    test('in the app the last offer is repeated; without one it is the normal price', () {
+      expect(paywallVariant('plan', 'standard', 'exit'), 'exit');
+      expect(paywallVariant('home', 'standard', 'gift'), 'gift');
+      expect(paywallVariant('home', 'standard', 'regular'), 'regular');
+      expect(paywallVariant('home', 'standard', null), 'standard');
     });
-    test('exit survey is asked only once, only on the regular paywall', () {
-      expect(shouldAskExitSurvey('regular', false), isTrue);
-      expect(shouldAskExitSurvey('regular', true), isFalse);
-      expect(shouldAskExitSurvey('exit', false), isFalse);
+    test(
+      'exit survey is asked only once, on the normal-price or trial paywall',
+      () {
+        expect(shouldAskExitSurvey('standard', false), isTrue);
+        expect(shouldAskExitSurvey('standard', true), isFalse);
+        expect(shouldAskExitSurvey('regular', false), isTrue);
+        expect(shouldAskExitSurvey('regular', true), isFalse);
+        expect(shouldAskExitSurvey('exit', false), isFalse);
+        expect(shouldAskExitSurvey('gift', false), isFalse);
+      },
+    );
+    test('survey answers only reveal an offer: price → lower exit price, doubts → trial plan', () {
+      expect(paywallSurveyOffer('price'), 'exit');
+      expect(paywallSurveyOffer('later'), 'regular');
+      expect(paywallSurveyOffer('unsure'), 'regular');
+      expect(paywallSurveyOffer(null), isNull);
+    });
+    test('people the store gives no trial get the lower price instead of the trial', () {
+      expect(paywallSurveyOffer('later', trialAvailable: false), 'exit');
+      expect(paywallSurveyOffer('unsure', trialAvailable: false), 'exit');
+      expect(paywallSurveyOffer('price', trialAvailable: false), 'exit');
     });
     test('saved offer and survey flag survive a save', () {
       final s = AppState.memory()
@@ -647,5 +767,300 @@ void main() {
     expect(featuredMeditationId(20, false), 'evening-wind-down');
     expect(featuredMeditationId(20, true), 'yoga-nidra');
     expect(featuredMeditationId(8, false), 'morning-clarity');
+  });
+
+  // Mirrors src/lib/i18n.test.ts.
+  group('languages', () {
+    test('fills placeholders and keeps unknown ones visible', () {
+      expect(
+        formatMessage('Hi {name}, {n} min', {'name': 'Mohit', 'n': 12}),
+        'Hi Mohit, 12 min',
+      );
+      expect(formatMessage('Hi {name}', {}), 'Hi {name}');
+    });
+    test("picks plural forms by each language's rules", () {
+      const days = '{n, plural, one {# day} other {# days}}';
+      expect(formatMessage(days, {'n': 1}, 'en'), '1 day');
+      expect(formatMessage(days, {'n': 2}, 'en'), '2 days');
+      expect(formatMessage(days, {'n': 0}, 'en'), '0 days');
+      expect(
+        formatMessage('{n, plural, one {# jour} other {# jours}}', {
+          'n': 0,
+        }, 'fr'),
+        '0 jour',
+      );
+      expect(
+        formatMessage('{n, plural, one {# dia} other {# dias}}', {
+          'n': 1,
+        }, 'pt'),
+        '1 dia',
+      );
+      expect(formatMessage('{n, plural, other {#日}}', {'n': 1}, 'ja'), '1日');
+      expect(
+        formatMessage('{n, plural, =0 {none} one {# Tag} other {# Tage}}', {
+          'n': 0,
+        }, 'de'),
+        'none',
+      );
+      expect(pluralCategory('de', 1), 'one');
+      expect(pluralCategory('it', 1.5), 'other');
+      expect(pluralCategory('ja', 1), 'other');
+    });
+    test('uses Hindi plural rules (0 and 1 are singular)', () {
+      expect(pluralCategory('hi', 0), 'one');
+      expect(pluralCategory('hi', 1), 'one');
+      expect(pluralCategory('hi', 2), 'other');
+      expect(
+        formatMessage('{n, plural, one {# दिन} other {# दिन}}', {'n': 3}, 'hi'),
+        '3 दिन',
+      );
+    });
+    test('agrees day counts in number on the real screens (1 day, 2 days)', () {
+      Map<String, dynamic> bundle(String lang) => jsonDecode(
+        File('assets/data/i18n/content.$lang.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      Content.loadFromJson(bundle('fr'), 'fr');
+      expect(tr('common.days', {'n': 1}), '1 jour');
+      expect(tr('common.days', {'n': 2}), '2 jours');
+      Content.loadFromJson(bundle('de'), 'de');
+      expect(tr('home.streakDayStreak', {'n': 1}), '1 Tag in Folge');
+      expect(tr('home.streakDayStreak', {'n': 3}), '3 Tage in Folge');
+      Content.loadFromJson(bundle('hi'), 'hi');
+      expect(tr('common.days', {'n': 2}), '2 दिन');
+      Content.loadFromJson(json);
+      expect(tr('home.streakDayStreak', {'n': 1}), '1-day streak');
+      expect(tr('common.days', {'n': 2}), '2 days');
+    });
+    test('finds the arguments a message uses, inside plural and select branches too', () {
+      expect(
+        messageArgs(
+          '{price}/{period, select, month {month} other {year}} for {name}',
+        ),
+        ['name', 'period', 'price'],
+      );
+      expect(
+        messageArgs('{n, plural, one {# day with {who}} other {# days}}'),
+        ['n', 'who'],
+      );
+    });
+    test('handles selects with nested placeholders', () {
+      const m = '{hasName, select, yes {{name}, your plan} other {Your plan}}';
+      expect(
+        formatMessage(m, {'hasName': 'yes', 'name': 'Mo'}),
+        'Mo, your plan',
+      );
+      expect(formatMessage(m, {'hasName': 'no'}), 'Your plan');
+    });
+    test('looks keys up in the active language and splits lists and link templates', () {
+      setI18n('de', {
+        'a.b': 'Hallo {name}',
+        'a.list': 'S, M, D',
+        'a.legal': 'Mit {terms} und {privacy}.',
+      });
+      expect(tr('a.b', {'name': 'Ana'}), 'Hallo Ana');
+      expect(tr('missing.key'), 'missing.key');
+      expect(trList('a.list'), ['S', 'M', 'D']);
+      expect(trParts('a.legal').map((p) => p.name ?? p.text).toList(), [
+        'Mit ',
+        'terms',
+        ' und ',
+        'privacy',
+        '.',
+      ]);
+      Content.loadFromJson(json);
+    });
+    test('ships English plus every translated language, each loading in its own language', () {
+      expect(supportedLanguages, [
+        'en',
+        'hi',
+        'es',
+        'pt',
+        'de',
+        'fr',
+        'it',
+        'ja',
+      ]);
+      for (final lang in supportedLanguages.skip(1)) {
+        final file = File('assets/data/i18n/content.$lang.json');
+        Content.loadFromJson(
+          jsonDecode(file.readAsStringSync()) as Map<String, dynamic>,
+          lang,
+        );
+        expect(appLang, lang);
+        expect(Content.i.plans.map((p) => p.id), [
+          for (final p in json['plans'] as List) p['id'],
+        ]);
+        final web = File('../src/data/i18n/content.$lang.json');
+        expect(file.readAsStringSync(), web.readAsStringSync());
+      }
+      Content.loadFromJson(json);
+      expect(appLang, 'en');
+    });
+    test('uses the saved choice, else the first device language we ship, else English', () {
+      expect(resolveLanguage('ja', ['de-DE']), 'ja');
+      expect(resolveLanguage(null, ['ko-KR', 'de-AT', 'en-US']), 'de');
+      expect(resolveLanguage(null, ['hi-IN', 'en-US']), 'hi');
+      expect(resolveLanguage(null, ['pt-PT']), 'pt');
+      expect(resolveLanguage(null, ['es_419']), 'es');
+      expect(resolveLanguage('xx', ['fr-CA']), 'fr');
+      expect(resolveLanguage(null, ['ko-KR', 'zh-CN']), 'en');
+      expect(resolveLanguage(null, []), 'en');
+    });
+    test('falls back to a device voice in the app language, English only in US or UK accents', () {
+      expect(fallbackVoiceRank('en', 'en-US'), 0);
+      expect(fallbackVoiceRank('en', 'en_GB'), 1);
+      expect(fallbackVoiceRank('en', 'en-IN'), isNull);
+      expect(fallbackVoiceRank('es', 'es-MX'), 0);
+      expect(fallbackVoiceRank('es', 'es-ES'), 3);
+      expect(fallbackVoiceRank('pt', 'pt-BR'), 0);
+      expect(fallbackVoiceRank('pt', 'pt-PT'), 1);
+      expect(fallbackVoiceRank('ja', 'ja-JP'), 0);
+      expect(fallbackVoiceRank('ja', 'en-US'), isNull);
+      expect(fallbackVoiceRank('de', 'de'), 1);
+      expect(fallbackVoiceRank('hi', 'hi-IN'), 0);
+      expect(fallbackVoiceRank('hi', 'en-IN'), isNull);
+    });
+  });
+
+  group('guided journey', () {
+    SessionItem it3(String e, int s, [String? f, int? r]) =>
+        SessionItem(e, s, null, f, r, f == null ? null : 'cue');
+
+    test('rests between poses, switches sides in 5 s and runs a flow without pauses', () {
+      final items = [
+        it3('cat-cow', 40),
+        it3('warrior-1-right', 30),
+        it3('warrior-1-left', 30),
+        it3('upward-salute', 5, 'half-sun', 1),
+        it3('forward-fold', 5, 'half-sun', 1),
+        it3('savasana', 60),
+      ];
+      expect(
+        [for (var i = 0; i < 6; i++) gapBefore(items, i)],
+        [0, 10, 5, 10, 0, 10],
+      );
+      expect(totalSeconds(items), 170 + 35);
+    });
+
+    test('demonstrates each new pose once, never the second side, savasana or a familiar pose', () {
+      final items = [
+        it3('cat-cow', 40),
+        it3('warrior-1-right', 30),
+        it3('warrior-1-left', 30),
+        it3('cat-cow', 30),
+        it3('savasana', 60),
+      ];
+      expect(
+        [for (var i = 0; i < items.length; i++) demoAt(items, i, {})],
+        [DemoKind.pose, DemoKind.pose, null, null, null],
+      );
+      expect(demoAt(items, 1, {'warrior-1'}), isNull);
+      expect(demoAt(items, 1, {'warrior-1'}, true), DemoKind.pose);
+    });
+
+    test('demonstrates a flow once at its first movement', () {
+      final items = [
+        it3('upward-salute', 5, 'sun-a', 1),
+        it3('forward-fold', 5, 'sun-a', 1),
+        it3('upward-salute', 5, 'sun-a', 2),
+        it3('child-pose', 30),
+        it3('upward-salute', 5, 'sun-a', 1),
+      ];
+      expect(
+        [for (var i = 0; i < items.length; i++) demoAt(items, i, {})],
+        [DemoKind.flow, null, null, DemoKind.pose, null],
+      );
+      expect(demoAt(items, 0, {'flow:sun-a'}), isNull);
+      expect(
+        [for (var i = 0; i < 3; i++) isRoundStart(items, i)],
+        [true, false, true],
+      );
+      expect(flowRounds(items, 1), 2);
+    });
+
+    test('counts poses and flows from finished workouts as practised', () {
+      HistoryEntry h(String kind) => HistoryEntry(
+        id: kind,
+        sessionId: 'plan:yoga-starter-7:1',
+        title: 'Day 1',
+        kind: kind,
+        image: 'x',
+        completedAt: DateTime(2026, 1, 1),
+        durationSec: 600,
+        kcal: 20,
+      );
+      final known = practisedSet([h('workout')]);
+      for (final it in Content.i.plan('yoga-starter-7')!.days.first.items) {
+        expect(
+          known.contains(it.f != null ? 'flow:${it.f}' : basePoseId(it.e)),
+          isTrue,
+        );
+      }
+      expect(practisedSet([h('meditation')]), isEmpty);
+    });
+
+    test(
+      'welcomes people to a course before Day 1 until a day is finished',
+      () {
+        final course = Content.i.plan('yoga-starter-7')!;
+        expect(shouldWelcome(course, 1, []), isTrue);
+        expect(shouldWelcome(course, 1, [1]), isFalse);
+        expect(shouldWelcome(course, 2, []), isFalse);
+        expect(
+          shouldWelcome(Content.i.plan('sun-salutation-a')!, 1, []),
+          isFalse,
+        );
+      },
+    );
+
+    test("celebrates a course day with tomorrow's lesson, the last day as the whole course", () {
+      final c = completionOf('yoga-starter-7', 3, [1, 2]);
+      expect(c.kind, CompletionKind.day);
+      expect(c.next!.day, 4);
+      expect(
+        completionOf('yoga-starter-7', 7, [1, 2, 3, 4, 5, 6]).kind,
+        CompletionKind.course,
+      );
+      expect(completionOf('yoga-starter-7', 5, [1, 2, 3, 4, 7]).next!.day, 6);
+      expect(
+        completionOf('sun-salutation-a', 1, []).kind,
+        CompletionKind.single,
+      );
+      expect(completionOf(null, null, []).kind, CompletionKind.single);
+    });
+
+    test("every course has a welcome, a finale and a 'Tomorrow' preview for every day after Day 1", () {
+      for (final p in Content.i.plans.where((x) => x.days.length > 1)) {
+        expect(p.welcome, isNotEmpty, reason: p.id);
+        expect(p.finale, isNotNull, reason: p.id);
+        for (final d in p.days) {
+          expect(d.intro, isNotEmpty, reason: '${p.id} ${d.day}');
+          if (d.day > 1) {
+            expect(
+              d.tease ?? '',
+              startsWith('Tomorrow'),
+              reason: '${p.id} ${d.day}',
+            );
+          }
+        }
+      }
+    });
+
+    test('every flow has a sequence film and a spoken demo', () {
+      expect(Content.i.flows.length, greaterThanOrEqualTo(5));
+      for (final f in Content.i.flows) {
+        expect(f.demo, isNotNull, reason: f.id);
+        expect(f.watch, isNotEmpty, reason: f.id);
+        expect(f.go, startsWith('Your turn'), reason: f.id);
+      }
+    });
+
+    test('paces voice-led moments by spoken length when the voice is off', () {
+      expect(speechSeconds(['Breathe in']), 1.9);
+      expect(
+        speechSeconds(['', 'One two three four five six seven eight nine ten']),
+        4.4,
+      );
+    });
   });
 }

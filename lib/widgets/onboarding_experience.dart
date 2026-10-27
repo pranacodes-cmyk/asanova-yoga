@@ -12,14 +12,16 @@ import '../theme/tokens.dart';
 import 'demo_film.dart';
 import 'ui.dart';
 import 'voice_bars.dart';
+import '../i18n/i18n.dart';
 
 /// The cinematic layer of the onboarding quiz: the host's spoken intro, chapter cards with looping
 /// films, the opening guided breath, the coach's spoken replies and film heroes above some questions.
-/// Mirrors src/components/asanova/OnboardingExperience.tsx.
+/// Mirrors src/components/enso/OnboardingExperience.tsx.
 
 /// The onboarding host (chapter 1's `host` in content): his name and portrait sit on every
 /// spoken reply (web `COACH_NAME` / `coachUrl`).
-String get coachName => Content.i.onboardingHost?.name ?? 'Your coach';
+String get coachName =>
+    Content.i.onboardingHost?.name ?? tr('onbExperience.yourCoach');
 String get coachAvatar =>
     img(Content.i.onboardingHost?.avatar ?? 'logo-asanova-mark');
 
@@ -29,10 +31,10 @@ const breathOut = 5;
 
 enum BreathPhase { inhale, exhale, done }
 
-const _breathLabel = {
-  BreathPhase.inhale: 'Breathe in…',
-  BreathPhase.exhale: '…and slowly out',
-  BreathPhase.done: 'Beautiful.',
+Map<BreathPhase, String> get _breathLabel => {
+  BreathPhase.inhale: tr('onbExperience.breatheIn'),
+  BreathPhase.exhale: tr('onbExperience.breatheOut'),
+  BreathPhase.done: tr('onbExperience.beautiful'),
 };
 
 /// Muted looping film that fades in over its poster (the film's matching pose photo) once it can
@@ -397,14 +399,21 @@ class _ChapterCardState extends State<ChapterCard> {
     final top = MediaQuery.paddingOf(context).top;
     final bottom = MediaQuery.paddingOf(context).bottom;
     final cta = intro
-        ? 'Skip intro'
+        ? tr('onbExperience.skipIntro')
         : ch.breath
-        ? (phase == BreathPhase.done ? "Let's begin" : 'Skip & begin')
-        : (widget.number == widget.total ? 'Almost there' : 'Continue');
+        ? (phase == BreathPhase.done
+              ? tr('onbExperience.letsBegin')
+              : tr('onbExperience.skipAndBegin'))
+        : (widget.number == widget.total
+              ? tr('onbExperience.almostThere')
+              : tr('common.continue'));
     final title = intro && host != null ? host.title : ch.title;
     final line = intro && host != null ? host.line : ch.line;
     return Semantics(
-      label: 'Chapter ${widget.number}: $title',
+      label: tr('onbExperience.chapterLabel', {
+        'number': widget.number,
+        'title': title,
+      }),
       child: ColoredBox(
         color: C.cream,
         child: Column(
@@ -476,8 +485,13 @@ class _ChapterCardState extends State<ChapterCard> {
                             ),
                             child: Text(
                               intro && host != null
-                                  ? '${host.name} · Your coach'
-                                  : 'Chapter ${widget.number} of ${widget.total}',
+                                  ? tr('onbExperience.hostYourCoach', {
+                                      'name': host.name,
+                                    })
+                                  : tr('onbExperience.chapterOf', {
+                                      'number': widget.number,
+                                      'total': widget.total,
+                                    }),
                               style: T.caption.w(FontWeight.w600).c(C.ink),
                             ),
                           ),
@@ -489,8 +503,8 @@ class _ChapterCardState extends State<ChapterCard> {
                             child: Semantics(
                               button: true,
                               label: widget.sound
-                                  ? 'Mute Ethan'
-                                  : 'Turn on sound',
+                                  ? tr('onbExperience.muteSound')
+                                  : tr('onbExperience.turnOnSound'),
                               child: GestureDetector(
                                 onTap: widget.onToggleSound,
                                 child: Glass(
@@ -523,7 +537,7 @@ class _ChapterCardState extends State<ChapterCard> {
                     delay: 0.25,
                     dy: 8,
                     child: Text(
-                      '${widget.number.toString().padLeft(2, '0')} · ${ch.section}',
+                      '${widget.number.toString().padLeft(2, '0')} · ${trTag(ch.section)}',
                       style: T.serifAccent.s(21.6).c(C.jade),
                     ),
                   ),
@@ -583,12 +597,12 @@ class _ChapterCardState extends State<ChapterCard> {
             Padding(
               padding: EdgeInsets.fromLTRB(24, 24, 24, bottom + 20),
               child: intro
-                  ? AsanovaButton(
+                  ? EnsoButton(
                       label: cta,
                       variant: BtnVariant.secondary,
                       onTap: _endIntro,
                     )
-                  : AsanovaButton(label: cta, onTap: widget.onDone),
+                  : EnsoButton(label: cta, onTap: widget.onDone),
             ),
           ],
         ),
@@ -736,7 +750,10 @@ class _CoachReplyState extends State<CoachReply> {
     final safe = MediaQuery.paddingOf(context);
     final reduced = MediaQuery.disableAnimationsOf(context);
     return Semantics(
-      label: '$coachName: ${widget.text}',
+      label: tr('onbExperience.coachSaid', {
+        'name': coachName,
+        'text': widget.text,
+      }),
       child: ColoredBox(
         color: C.cream,
         child: GestureDetector(
@@ -814,8 +831,8 @@ class _CoachReplyState extends State<CoachReply> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                AsanovaButton(
-                  label: 'Continue',
+                EnsoButton(
+                  label: tr('common.continue'),
                   variant: BtnVariant.ghost,
                   size: BtnSize.md,
                   onTap: widget.onSkip,
@@ -934,7 +951,7 @@ class StepFilm extends StatelessWidget {
                     const Icon(LucideIcons.play, size: 12, color: C.ink),
                     const SizedBox(width: 6),
                     Text(
-                      'Like this',
+                      tr('onbExperience.likeThis'),
                       style: T.caption.w(FontWeight.w600).c(C.ink),
                     ),
                   ],
@@ -979,7 +996,9 @@ class SoundToggle extends StatelessWidget {
     iconColor: on ? C.jadeDeep : C.muted,
     iconSize: 18,
     onTap: onToggle,
-    label: on ? 'Mute music and voice' : 'Turn on music and voice',
+    label: on
+        ? tr('onbExperience.muteMusicAndVoice')
+        : tr('onbExperience.turnOnMusicAndVoice'),
   );
 }
 

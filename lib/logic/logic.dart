@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import '../data/content.dart';
 import '../data/models.dart';
+import '../i18n/i18n.dart';
 
 const restBetweenSec = 10;
 
@@ -164,6 +165,9 @@ class Session {
   final int restSec, baseKcal;
   final String? planId;
   final int? day;
+
+  /// The tutor's opening intention, spoken before the first pose ('' when none).
+  final String intro;
   const Session({
     required this.id,
     required this.kind,
@@ -175,6 +179,7 @@ class Session {
     required this.baseKcal,
     this.planId,
     this.day,
+    this.intro = '',
   });
 }
 
@@ -188,11 +193,63 @@ int dayOfYear(DateTime d) =>
     DateTime(d.year, d.month, d.day).difference(DateTime(d.year, 1, 1)).inDays +
     1;
 
+// ------------------------------------------------------------ language
+
+/// App languages, English first. Must match scripts/content/i18n/languages.ts (a test checks).
+const supportedLanguages = ['en', 'hi', 'es', 'pt', 'de', 'fr', 'it', 'ja'];
+
+/// Each language's own name, shown in the language picker.
+const languageNames = {
+  'en': 'English',
+  'hi': 'हिन्दी',
+  'es': 'Español',
+  'pt': 'Português',
+  'de': 'Deutsch',
+  'fr': 'Français',
+  'it': 'Italiano',
+  'ja': '日本語',
+};
+
+/// The app language: the person's saved choice, else the first device language we ship, else English.
+String resolveLanguage(String? saved, List<String> deviceLocales) {
+  if (saved != null && supportedLanguages.contains(saved)) return saved;
+  for (final l in deviceLocales) {
+    final primary = l.toLowerCase().split(RegExp(r'[-_]')).first;
+    if (supportedLanguages.contains(primary)) return primary;
+  }
+  return 'en';
+}
+
+/// Device-voice locales for the coach fallback, most preferred first (prefix match on the voice's
+/// locale). English stays US/UK only; other languages prefer the accent of the clips.
+List<String> fallbackVoiceLocales(String lang) =>
+    const {
+      'en': ['en-us', 'en-gb'],
+      'hi': ['hi-in', 'hi'],
+      'es': ['es-mx', 'es-us', 'es-419', 'es-es', 'es'],
+      'pt': ['pt-br', 'pt'],
+      'de': ['de-de', 'de'],
+      'fr': ['fr-fr', 'fr'],
+      'it': ['it-it', 'it'],
+      'ja': ['ja-jp', 'ja'],
+    }[lang] ??
+    const ['en-us', 'en-gb'];
+
+/// Rank of a device voice locale for [lang] (lower is better), or null when it must not be used.
+int? fallbackVoiceRank(String lang, String locale) {
+  final l = locale.toLowerCase().replaceAll('_', '-');
+  final prefs = fallbackVoiceLocales(lang);
+  for (var i = 0; i < prefs.length; i++) {
+    if (l == prefs[i] || l.startsWith('${prefs[i]}-')) return i;
+  }
+  return null;
+}
+
 String greeting(int hour) {
-  if (hour < 5) return 'Good evening';
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
+  if (hour < 5) return tr('greet.evening');
+  if (hour < 12) return tr('greet.morning');
+  if (hour < 17) return tr('greet.afternoon');
+  return tr('greet.evening');
 }
 
 /// Rating prompt: once per calendar day after a completed session, until the person has rated (4–5 stars sent to the store, or private feedback sent).
@@ -382,7 +439,9 @@ class PhaseSpan {
 List<PhaseSpan> phaseSpans(List<SessionItem> items) {
   final out = <PhaseSpan>[];
   for (final it in items) {
-    final label = (it.p == null || it.p!.isEmpty) ? 'Practice' : it.p!;
+    final label = (it.p == null || it.p!.isEmpty)
+        ? tr('session.phasePractice')
+        : it.p!;
     if (out.isNotEmpty && out.last.label == label) {
       out[out.length - 1] = PhaseSpan(label, out.last.sec + it.s);
     } else {
@@ -394,9 +453,145 @@ List<PhaseSpan> phaseSpans(List<SessionItem> items) {
 
 // ------------------------------------------------------------ sessions
 
+/// "warrior-1-left" → "warrior-1": both sides of a pose share one base pose.
+String basePoseId(String id) => id.replaceFirst(RegExp(r'-(left|right)$'), '');
+
+/// Seconds between items i-1 and i (mirrors the content generator): none inside one
+/// breath-paced flow, a short switch between the two sides of one pose, the session rest otherwise.
+int gapBefore(List<SessionItem> items, int i, [int restSec = restBetweenSec]) {
+  if (i <= 0 || restSec <= 0) return 0;
+  final a = items[i - 1], b = items[i];
+  if (b.f != null && a.f == b.f) return 0;
+  if (a.e != b.e && basePoseId(a.e) == basePoseId(b.e)) {
+    return math.min(restSec, 5);
+  }
+  return restSec;
+}
+
 int totalSeconds(List<SessionItem> items, [int restSec = restBetweenSec]) {
-  final work = items.fold<int>(0, (s, it) => s + it.s);
-  return work + restSec * math.max(0, items.length - 1);
+  var total = 0;
+  for (var i = 0; i < items.length; i++) {
+    total += items[i].s + gapBefore(items, i, restSec);
+  }
+  return total;
+}
+
+// ------------------------------------------------------------ guided journey
+
+/// Simple starting shapes the tutor never needs to demonstrate.
+const noDemoPoses = {'savasana', 'mountain', 'easy-seat', 'chair-mountain'};
+
+/// Poses and flows this person has already practised in finished sessions.
+Set<String> practisedSet(List<HistoryEntry> history) {
+  final out = <String>{};
+  for (final h in history) {
+    if (h.kind != 'workout') continue;
+    for (final it
+        in resolveSession(h.sessionId)?.items ?? const <SessionItem>[]) {
+      out.add(it.f != null ? 'flow:${it.f}' : basePoseId(it.e));
+    }
+  }
+  return out;
+}
+
+enum DemoKind { flow, pose }
+
+/// What the tutor demonstrates before item i: the whole sequence at the first movement of a
+/// flow, a pose the first time it appears in the session, or nothing. Familiar poses and flows
+/// (already practised) skip the demo unless [always]; the second side never repeats it.
+DemoKind? demoAt(
+  List<SessionItem> items,
+  int i,
+  Set<String> known, [
+  bool always = false,
+]) {
+  if (i < 0 || i >= items.length) return null;
+  final it = items[i];
+  if (it.f != null) {
+    if (i > 0 && items[i - 1].f == it.f) return null;
+    if (items.take(i).any((x) => x.f == it.f)) return null;
+    return always || !known.contains('flow:${it.f}') ? DemoKind.flow : null;
+  }
+  final base = basePoseId(it.e);
+  if (noDemoPoses.contains(base)) return null;
+  if (items.take(i).any((x) => x.f == null && basePoseId(x.e) == base)) {
+    return null;
+  }
+  return always || !known.contains(base) ? DemoKind.pose : null;
+}
+
+/// Item i starts a new round of its flow (the first movement of round 2, 3…).
+bool isRoundStart(List<SessionItem> items, int i) {
+  if (i < 0 || i >= items.length || items[i].f == null) return false;
+  if (i == 0) return true;
+  final prev = items[i - 1], it = items[i];
+  return prev.f != it.f || prev.r != it.r;
+}
+
+/// Number of rounds of the flow block item i belongs to.
+int flowRounds(List<SessionItem> items, int i) {
+  if (i < 0 || i >= items.length || items[i].f == null) return 0;
+  final f = items[i].f;
+  var start = i;
+  while (start > 0 && items[start - 1].f == f) {
+    start--;
+  }
+  var max = 0;
+  for (var k = start; k < items.length && items[k].f == f; k++) {
+    max = math.max(max, items[k].r ?? 1);
+  }
+  return max;
+}
+
+/// The tutor welcomes a person to a course before Day 1 until they have finished a day of it.
+bool shouldWelcome(Plan plan, int day, List<int> completedDays) =>
+    plan.days.length > 1 &&
+    plan.welcome.isNotEmpty &&
+    day == 1 &&
+    completedDays.isEmpty;
+
+enum CompletionKind { day, course, single }
+
+/// What the completion screen celebrates (web `completionOf`): a course day with tomorrow's
+/// preview, the whole course, or one class.
+class Completion {
+  const Completion(this.kind, {this.day, this.next, this.plan});
+  final CompletionKind kind;
+  final int? day;
+  final PlanDay? next;
+  final Plan? plan;
+}
+
+Completion completionOf(String? planId, int? day, List<int> completedDays) {
+  final plan = planId == null ? null : Content.i.plan(planId);
+  if (plan == null || plan.days.length <= 1 || day == null) {
+    return const Completion(CompletionKind.single);
+  }
+  final done = {...completedDays, day};
+  if (plan.days.every((d) => done.contains(d.day))) {
+    return Completion(CompletionKind.course, plan: plan);
+  }
+  final next =
+      plan.days
+          .where((d) => d.day > day && !done.contains(d.day))
+          .firstOrNull ??
+      plan.days.firstWhere((d) => !done.contains(d.day));
+  return Completion(CompletionKind.day, day: day, next: next);
+}
+
+/// Rough spoken length of lines (s), used to pace voice-led moments when the voice is off.
+double speechSeconds(List<String> lines) {
+  var total = 0.0;
+  final cjk = RegExp(r'[\u3040-\u30ff\u4e00-\u9fff]');
+  for (final l in lines) {
+    final t = l.trim();
+    if (t.isEmpty) continue;
+    final words = cjk.hasMatch(t)
+        ? t.replaceAll(RegExp(r'\s'), '').length / 3
+        : t.split(RegExp(r'\s+')).length.toDouble();
+    total += math.max(1.5, words / 2.5) + 0.4;
+  }
+  return (total * 10).round() / 10;
 }
 
 int kcalForWeight(int baseKcal, double weightKg) =>
@@ -429,6 +624,7 @@ Session? resolveSession(String id) {
       items: q.items,
       restSec: restBetweenSec,
       baseKcal: q.kcal,
+      intro: q.intro,
     );
   }
   if (kind == 'plan' && a != null && b != null) {
@@ -441,14 +637,15 @@ Session? resolveSession(String id) {
       kind: 'plan',
       title: plan.isSingleSession
           ? plan.title
-          : 'Day ${day.day} · ${day.title}',
-      subtitle: plan.isSingleSession ? plan.group : plan.title,
+          : tr('common.dayTitle', {'day': day.day, 'title': day.title}),
+      subtitle: plan.isSingleSession ? trTag(plan.group) : plan.title,
       image: plan.image,
       items: day.items,
       restSec: restBetweenSec,
       baseKcal: day.kcal,
       planId: plan.id,
       day: day.day,
+      intro: day.intro,
     );
   }
   if (kind == 'cat' && a != null) {
@@ -463,6 +660,7 @@ Session? resolveSession(String id) {
       items: cat.items,
       restSec: restBetweenSec,
       baseKcal: cat.kcal,
+      intro: cat.intro,
     );
   }
   if (kind == 'ex' && a != null) {
@@ -473,7 +671,7 @@ Session? resolveSession(String id) {
       id: id,
       kind: 'exercise',
       title: ex.name,
-      subtitle: 'Single practice',
+      subtitle: tr('session.singlePractice'),
       image: ex.image,
       items: items,
       restSec: 0,
@@ -629,7 +827,8 @@ class DayMinutes {
   const DayMinutes(this.key, this.label, this.minutes);
 }
 
-const weekLetters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+/// Weekday initials (Sunday first) in the app language.
+List<String> get weekLetters => trList('common.weekdayLetters');
 
 List<DayMinutes> weekMinutes(List<HistoryEntry> history, DateTime today) {
   return List.generate(7, (idx) {
@@ -645,7 +844,8 @@ List<DayMinutes> weekMinutes(List<HistoryEntry> history, DateTime today) {
 
 // ------------------------------------------------------------ formatting
 
-String formatMinutes(int sec) => '${math.max(1, (sec / 60).round())} min';
+String formatMinutes(int sec) =>
+    tr('common.minShort', {'n': math.max(1, (sec / 60).round())});
 
 String formatClock(num sec) {
   final s = math.max(0, sec.ceil());
@@ -675,15 +875,28 @@ const privacyNoticeVersion = 1;
 
 // ------------------------------------------------------------ paywall offer
 
-/// Which paywall variant to show. During onboarding the requested variant is
-/// shown (regular → exit / gift); afterwards the app always repeats the last
-/// offer the person saw in onboarding, so the in-app price never differs.
+/// Which paywall variant to show. The first paywall is `standard` (normal price, no trial);
+/// during onboarding the requested variant is shown (standard → regular / exit / gift);
+/// afterwards the app always repeats the last offer the person was shown, so the in-app price
+/// never rises and a first checkout never silently starts a trial.
 String paywallVariant(String from, String requested, String? savedOffer) {
   if (from == 'onboarding') return requested;
-  return savedOffer ?? 'regular';
+  return savedOffer ?? 'standard';
 }
 
 /// The "what's holding you back?" question is asked once ever, only when the
-/// regular paywall is closed.
+/// normal-price (standard or trial) paywall is closed.
 bool shouldAskExitSurvey(String variant, bool alreadyAsked) =>
-    variant == 'regular' && !alreadyAsked;
+    (variant == 'standard' || variant == 'regular') && !alreadyAsked;
+
+/// Offer revealed after the exit survey: "the price feels high" → the lower yearly exit offer;
+/// "check first" / "not sure" → the 7-day trial plan, or the lower price when the store says
+/// this person cannot get the trial (e.g. subscribed before), so an answer is never ignored;
+/// dismissed → none. A reveal only shows the offer: it never starts a trial or grants Plus.
+/// Mirrors web `paywallSurveyOffer`.
+String? paywallSurveyOffer(String? reason, {bool trialAvailable = true}) =>
+    switch (reason) {
+      'price' => 'exit',
+      'later' || 'unsure' => trialAvailable ? 'regular' : 'exit',
+      _ => null,
+    };

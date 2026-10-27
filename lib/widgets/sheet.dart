@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 
 /// Bottom sheet matching the web `Sheet` (34px top radius, grab handle, drag to dismiss).
-Future<T?> showAsanovaSheet<T>(
+Future<T?> showEnsoSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   bool dark = false,

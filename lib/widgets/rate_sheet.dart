@@ -10,13 +10,14 @@ import '../theme/tokens.dart';
 import 'sheet.dart';
 import 'toast.dart';
 import 'ui.dart';
+import '../i18n/i18n.dart';
 
 /// After a completed session: asks for a rating once per day until rated (web `RateSheet`).
 Future<void> maybeAskRating(BuildContext context, AppState app) async {
   final today = dateKey(DateTime.now());
   if (!shouldAskRating(app.ratedApp, app.ratePromptDay, today)) return;
   app.markRatePrompted(today);
-  await showAsanovaSheet<void>(context, builder: (_) => _RateBody(app: app));
+  await showEnsoSheet<void>(context, builder: (_) => _RateBody(app: app));
 }
 
 class _RateBody extends StatefulWidget {
@@ -40,14 +41,19 @@ class _RateBodyState extends State<_RateBody> {
     nav.pop();
     if (ratingGoesToStore(stars)) {
       Toast.show(
-        'Thank you!',
-        description: 'Your rating helps others find calm.',
+        tr('rate.thankYou'),
+        description: tr('rate.helpsOthers'),
         tone: 'success',
       );
       await AppLinks.rate();
     } else {
-      Toast.show('Thanks for telling us', description: "We'll make it better.");
-      await AppLinks.contact(subject: 'Asanova feedback ($stars★)');
+      Toast.show(
+        tr('rate.thanksForTelling'),
+        description: tr('rate.willMakeItBetter'),
+      );
+      await AppLinks.contact(
+        subject: tr('rate.feedbackSubject', {'stars': stars}),
+      );
     }
   }
 
@@ -70,13 +76,13 @@ class _RateBodyState extends State<_RateBody> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Enjoying Asanova?',
+            tr('rate.enjoyingApp'),
             style: T.displayMd,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
-            low ? 'What could feel better? Tell us and we\'ll fix it.' : 'A quick rating helps more people discover gentle, calming movement.',
+            low ? tr('rate.whatCouldFeelBetter') : tr('rate.quickRatingHelps'),
             style: T.caption.copyWith(
               fontSize: 15,
               height: 1.5,
@@ -112,16 +118,18 @@ class _RateBodyState extends State<_RateBody> {
             ],
           ),
           const SizedBox(height: 26),
-          AsanovaButton(
+          EnsoButton(
             label: stars == 0
-                ? 'Tap a star to rate'
-                : (low ? 'Send feedback' : 'Rate on ${AppLinks.storeName}'),
+                ? tr('rate.tapAStarToRate')
+                : (low
+                      ? tr('rate.sendFeedback')
+                      : tr('rate.rateOnStore', {'store': AppLinks.storeName})),
             variant: stars == 0 ? BtnVariant.secondary : BtnVariant.primary,
             onTap: stars == 0 ? null : _submit,
           ),
           const SizedBox(height: 6),
-          AsanovaButton(
-            label: 'Not now',
+          EnsoButton(
+            label: tr('rate.notNow'),
             variant: BtnVariant.ghost,
             onTap: () => Navigator.of(context).pop(),
           ),

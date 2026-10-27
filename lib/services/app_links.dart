@@ -6,22 +6,24 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/content.dart';
+import '../i18n/i18n.dart';
 
 /// Store, support and version links (web `src/lib/app-links.ts`).
 class AppLinks {
   AppLinks._();
 
-  static const appStoreId = '6826571121';
+  static const appStoreId = '';
   static const androidPackage = 'com.asanova.yoga';
 
   static bool get _ios => !kIsWeb && Platform.isIOS;
 
   /// Name of the store that bills subscriptions on this device.
-  static String get storeName => _ios ? 'the App Store' : 'Google Play';
+  static String get storeName =>
+      _ios ? tr('links.storeNameAppStore') : tr('links.storeNameGooglePlay');
 
   static String? _version;
 
-  /// "1.0.0 (1)" from the installed build.
+  /// "1.9.0 (1013)" from the installed build.
   static Future<String> version() async {
     if (_version != null) return _version!;
     try {
@@ -72,7 +74,8 @@ class AppLinks {
   );
 
   /// Email to support with the app version filled in.
-  static Future<bool> contact({String subject = 'Asanova help'}) async {
+  static Future<bool> contact({String? subject}) async {
+    final s = subject ?? tr('links.contactSubject');
     final v = await version();
     final to = Content.i.legal.contact;
     return _open(
@@ -80,7 +83,7 @@ class AppLinks {
         scheme: 'mailto',
         path: to,
         query:
-            'subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent('\n\n—\nAsanova $v · ${_ios ? 'iPhone' : 'Android'}')}',
+            'subject=${Uri.encodeComponent(s)}&body=${Uri.encodeComponent(tr('links.emailSignature', {'version': v, 'device': _ios ? 'iPhone' : 'Android'}))}',
       ),
     );
   }

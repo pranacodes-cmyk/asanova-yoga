@@ -8,6 +8,7 @@ import '../state/app_state.dart';
 import '../widgets/cards.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/ui.dart';
+import '../i18n/i18n.dart';
 
 /// Standalone classes, styles and movements inside the Courses catalogue.
 class SingleClassesSection extends StatelessWidget {
@@ -39,7 +40,9 @@ class SingleClassesSection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SectionHeader(
-                app.premium.active ? 'Quick sessions' : 'Free for you',
+                app.premium.active
+                    ? tr('singleClasses.quickSessions')
+                    : tr('singleClasses.freeForYou'),
               ),
               HScroll(
                 children: [
@@ -58,7 +61,9 @@ class SingleClassesSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SectionHeader('$g classes'),
+                  SectionHeader(
+                    tr('singleClasses.groupClasses', {'group': trTag(g)}),
+                  ),
                   HScroll(
                     children: [
                       for (final p in sessions.where((p) => p.group == g))
@@ -70,15 +75,15 @@ class SingleClassesSection extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 34),
-        const SectionHeader('Explore by style'),
+        SectionHeader(tr('singleClasses.exploreByStyle')),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20),
           child: _StyleGrid(),
         ),
         const SizedBox(height: 34),
         SectionHeader(
-          'Pose library',
-          action: 'See all ${moves.length}',
+          tr('singleClasses.poseLibrary'),
+          action: tr('singleClasses.seeAllCount', {'n': moves.length}),
           onAction: () => context.push('/movements'),
         ),
         Padding(
@@ -91,13 +96,13 @@ class SingleClassesSection extends StatelessWidget {
                   child: ThumbRow(
                     image: img(e.image),
                     title: e.name,
-                    subtitle: e.focus.take(3).join(' · '),
+                    subtitle: e.focus.take(3).map((f) => trTag(f)).join(' · '),
                     onTap: () => context.push('/exercise/${e.id}'),
                   ),
                 ),
               const SizedBox(height: 4),
-              AsanovaButton(
-                label: 'Browse all ${moves.length} poses',
+              EnsoButton(
+                label: tr('singleClasses.browseAllPoses', {'n': moves.length}),
                 variant: BtnVariant.secondary,
                 icon: LucideIcons.search,
                 onTap: () => context.push('/movements'),

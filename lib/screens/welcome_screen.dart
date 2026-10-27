@@ -8,8 +8,13 @@ import '../theme/text.dart';
 import '../theme/tokens.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/ui.dart';
+import '../i18n/i18n.dart';
 
-const _pillars = ['Move', 'Breathe', 'Belong'];
+List<String> get _pillars => [
+  tr('welcome.pillarMove'),
+  tr('welcome.pillarBreathe'),
+  tr('welcome.pillarBelong'),
+];
 
 /// First screen: looping practice film (poster image until it plays), headline and the quiz CTA.
 class WelcomeScreen extends StatefulWidget {
@@ -57,7 +62,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     final focus = Content.i.focusOf('hero-welcome');
     final avatars = Content.i.testimonials.take(4).toList();
     final v = _video;
-    return AsanovaScaffold(
+    return EnsoScaffold(
       background: C.forest,
       lightIcons: true,
       body: Stack(
@@ -139,7 +144,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        'Asanova',
+                        tr('welcome.brandName'),
                         style: T.label.copyWith(
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
@@ -163,7 +168,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              'Yoga, your way',
+                              tr('welcome.yogaYourWay'),
                               style: T.tiny.copyWith(color: C.ivory),
                             ),
                           ],
@@ -208,9 +213,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   child: Text.rich(
                     TextSpan(
                       children: [
-                        const TextSpan(text: 'Asanova\n'),
+                        TextSpan(text: tr('welcome.headlineBrandLine')),
                         TextSpan(
-                          text: 'your daily ritual.',
+                          text: tr('welcome.headlineRitualLine'),
                           style: T.serifAccent.copyWith(
                             fontSize: 54.4,
                             color: C.ivory,
@@ -229,7 +234,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 320),
                     child: Text(
-                      'Find your flow with thoughtful yoga, steady breath and moments of stillness. Start exactly where you are.',
+                      tr('welcome.subtitle'),
                       style: T.body.copyWith(
                         fontSize: 17,
                         color: C.ivory.withValues(alpha: 0.85),
@@ -271,7 +276,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             const Stars(size: 13),
                             const SizedBox(height: 2),
                             Text(
-                              'Make space for yourself',
+                              tr('welcome.makeSpaceForYourself'),
                               softWrap: true,
                               style: T.tiny.copyWith(
                                 height: 1.25,
@@ -293,8 +298,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     children: [
                       Shimmer(
                         color: C.jadeSoft,
-                        child: AsanovaButton(
-                          label: 'Get my personal plan',
+                        child: EnsoButton(
+                          label: tr('welcome.ctaLabel'),
                           variant: BtnVariant.ivory,
                           trailing: LucideIcons.arrowRight,
                           onTap: () => context.go('/onboarding'),
@@ -302,7 +307,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        '1-minute quiz · Built around your body',
+                        tr('welcome.quizNote'),
                         style: T.caption.copyWith(
                           color: C.ivory.withValues(alpha: 0.65),
                         ),
@@ -313,11 +318,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         children: [
                           TextButton(
                             onPressed: () => context.push('/legal/terms'),
-                            child: const Text('Terms'),
+                            child: Text(tr('welcome.termsLabel')),
                           ),
                           TextButton(
                             onPressed: () => context.push('/legal/privacy'),
-                            child: const Text('Privacy'),
+                            child: Text(tr('welcome.privacyShort')),
                           ),
                         ],
                       ),

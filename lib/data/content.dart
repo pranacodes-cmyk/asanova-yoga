@@ -3,13 +3,21 @@ import 'dart:convert';
 import 'package:flutter/painting.dart' show Alignment;
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../i18n/i18n.dart';
 import 'models.dart';
 
-/// Loaded once at startup from the shared content.json.
+/// The shared content in the app language: `content.json` (English) or `i18n/content.<lang>.json`,
+/// loaded at startup and again when the language changes.
 class Content {
-  Content._(Map<String, dynamic> j)
-    : exercises = (j['exercises'] as List)
+  Content._(Map<String, dynamic> j, this.lang)
+    : ui = ((j['ui'] as Map?) ?? const {}).map(
+        (k, v) => MapEntry(k as String, v as String),
+      ),
+      exercises = (j['exercises'] as List)
           .map((e) => Exercise.fromJson(e))
+          .toList(),
+      flows = (j['flows'] as List? ?? const [])
+          .map((e) => YogaFlow.fromJson(e as Map<String, dynamic>))
           .toList(),
       categories = (j['categories'] as List)
           .map((e) => Category.fromJson(e))
@@ -81,24 +89,39 @@ class Content {
     for (final a in achievements) {
       _ach[a.id] = a;
     }
+    setI18n(lang, ui);
   }
 
   static late Content i;
   static bool loaded = false;
 
-  static Future<void> load() async {
-    final raw = await rootBundle.loadString('assets/data/content.json');
-    i = Content._(jsonDecode(raw) as Map<String, dynamic>);
+  /// Bundled content file for a language code.
+  static String assetFor(String lang) => lang == 'en'
+      ? 'assets/data/content.json'
+      : 'assets/data/i18n/content.$lang.json';
+
+  static Future<void> load([String lang = 'en']) async {
+    final raw = await rootBundle.loadString(assetFor(lang));
+    i = Content._(jsonDecode(raw) as Map<String, dynamic>, lang);
     loaded = true;
   }
 
   /// For tests: build from an already-decoded map.
-  static void loadFromJson(Map<String, dynamic> j) {
-    i = Content._(j);
+  static void loadFromJson(Map<String, dynamic> j, [String lang = 'en']) {
+    i = Content._(j, lang);
     loaded = true;
   }
 
+  /// Language of the loaded content ("en", "hi", "de", "ja"…).
+  final String lang;
+
+  /// UI strings (key → message) in this language, read through `tr()`.
+  final Map<String, String> ui;
+
   final List<Exercise> exercises;
+
+  /// Breath-paced Sun / Moon Salutations used by lessons (`SessionItem.f`).
+  final List<YogaFlow> flows;
   final List<Category> categories;
   final List<QuickSession> quickSessions;
   final List<String> planGroups;
@@ -146,6 +169,8 @@ class Content {
   final _ach = <String, Achievement>{};
 
   Exercise? exercise(String id) => _ex[id];
+  YogaFlow? flow(String? id) =>
+      id == null ? null : flows.where((f) => f.id == id).firstOrNull;
   Plan? plan(String id) => _plans[id];
   Category? category(String id) => _cats[id];
   QuickSession? quick(String id) => _quick[id];

@@ -247,7 +247,7 @@ packages:
     source: hosted
     version: "3.1.1"
   flutter_localizations:
-    dependency: transitive
+    dependency: "direct main"
     description: flutter
     source: sdk
     version: "0.0.0"
@@ -494,7 +494,7 @@ packages:
     source: hosted
     version: "1.9.1"
   path_provider:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: path_provider
       sha256: a7f4874f987173da295a61c181b8ee71dab59b332a486b391babf26a1b884825
@@ -581,6 +581,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.1"
+  purchases_flutter:
+    dependency: "direct main"
+    description:
+      name: purchases_flutter
+      sha256: "0c4384bc3b24a5f0b131eb40d48fe866d8a59548000d4a937b691dbfb2900324"
+      url: "https://pub.dev"
+    source: hosted
+    version: "9.16.2"
   record_use:
     dependency: transitive
     description:

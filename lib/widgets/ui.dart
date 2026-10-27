@@ -10,6 +10,7 @@ import '../data/content.dart';
 import '../services/audio_service.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
+import '../i18n/i18n.dart';
 
 /// Scale-on-press wrapper (web `.press`: active:scale-0.97).
 class Pressable extends StatefulWidget {
@@ -65,8 +66,8 @@ enum BtnVariant { primary, secondary, ghost, glass, light, gold, ivory }
 
 enum BtnSize { lg, md, sm }
 
-class AsanovaButton extends StatelessWidget {
-  const AsanovaButton({
+class EnsoButton extends StatelessWidget {
+  const EnsoButton({
     super.key,
     required this.label,
     this.onTap,
@@ -121,7 +122,7 @@ class AsanovaButton extends StatelessWidget {
         bg = C.sand;
       case BtnVariant.ghost:
         bg = Colors.transparent;
-        fg = C.muted;
+        fg = C.ink;
       case BtnVariant.glass:
         bg = C.forest.withValues(alpha: 0.35);
         fg = C.ivory;
@@ -177,14 +178,16 @@ class AsanovaButton extends StatelessWidget {
           constraints: BoxConstraints(minHeight: h),
           width: expand ? double.infinity : null,
           padding: EdgeInsets.symmetric(horizontal: pad, vertical: verticalPad),
-          alignment: Alignment.center,
+          // A Container with alignment fills the available width, so compact buttons centre
+          // with widthFactor 1 and hug their label like the web `inline-flex` button.
+          alignment: expand ? Alignment.center : null,
           decoration: BoxDecoration(
             color: bg,
             gradient: gradient,
             borderRadius: BorderRadius.circular(h),
             boxShadow: shadow,
           ),
-          child: content,
+          child: expand ? content : Center(widthFactor: 1, child: content),
         ),
       ),
     );
@@ -449,14 +452,23 @@ class SectionHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(child: Text(title, style: T.title.s(20))),
-          if (action != null)
-            Pressable(
-              onTap: onAction,
-              child: Text(
-                action!,
-                style: T.label.copyWith(fontSize: 14, color: C.jade),
+          if (action != null) ...[
+            const SizedBox(width: 12),
+            // long translated links ("Todos los ejercicios de respiración") never push the title out
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 150),
+              child: Pressable(
+                onTap: onAction,
+                child: Text(
+                  action!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: T.label.copyWith(fontSize: 14, color: C.jade),
+                ),
               ),
             ),
+          ],
         ],
       ),
     );
@@ -529,7 +541,7 @@ class BackBtn extends StatelessWidget {
     return CircleBtn(
       icon: LucideIcons.chevronLeft,
       tone: tone,
-      label: 'Back',
+      label: tr('common.back'),
       onTap: onTap ?? () => context.canPop() ? context.pop() : context.go('/'),
     );
   }
@@ -575,8 +587,8 @@ class ChipPill extends StatelessWidget {
 
 /// Gold "PLUS" pill marking paid content; `large` is the version sitting on cover cards.
 class PremiumBadge extends StatelessWidget {
-  const PremiumBadge({super.key, this.label = 'PLUS', this.large = false});
-  final String label;
+  const PremiumBadge({super.key, this.label, this.large = false});
+  final String? label;
   final bool large;
   @override
   Widget build(BuildContext context) {
@@ -608,7 +620,7 @@ class PremiumBadge extends StatelessWidget {
           Icon(LucideIcons.crown, size: large ? 13 : 12, color: C.ink),
           SizedBox(width: large ? 5 : 4),
           Text(
-            label,
+            label ?? tr('ui.plusLabel'),
             style: TextStyle(
               fontFamily: T.family,
               fontSize: large ? 11 : 10,

@@ -16,6 +16,7 @@ import '../widgets/cards.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/tab_shell.dart';
 import '../widgets/ui.dart';
+import '../i18n/i18n.dart';
 
 class MeditateScreen extends StatefulWidget {
   const MeditateScreen({super.key});
@@ -83,7 +84,7 @@ class _MeditateScreenState extends State<MeditateScreen> {
         .where((m) => m.category == 'Yoga Nidra')
         .toList();
 
-    return AsanovaScaffold(
+    return EnsoScaffold(
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: EdgeInsets.only(
@@ -98,10 +99,12 @@ class _MeditateScreenState extends State<MeditateScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Meditate', style: T.displayLg),
+                  Text(tr('meditate.title'), style: T.displayLg),
                   const SizedBox(height: 4),
                   Text(
-                    '${c.meditations.length} guided sessions · breath, chakras, Yoga Nidra and sleep.',
+                    tr('meditate.guidedSessionsSubtitle', {
+                      'n': c.meditations.length,
+                    }),
                     style: T.bodySm.c(C.muted),
                   ),
                 ],
@@ -140,7 +143,10 @@ class _MeditateScreenState extends State<MeditateScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Eyebrow(
-                                      'Featured · ${featured.category} · ${featured.minutes} min',
+                                      tr('meditate.featuredCategoryMinutes', {
+                                        'category': trTag(featured.category),
+                                        'n': featured.minutes,
+                                      }),
                                       color: C.ivory.withValues(alpha: 0.7),
                                     ),
                                     const SizedBox(height: 6),
@@ -220,12 +226,12 @@ class _MeditateScreenState extends State<MeditateScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Breathing coach',
+                                tr('meditate.breathingCoach'),
                                 style: T.title.c(C.ivory),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Box, 4-7-8 & calm breathing · 1–5 min',
+                                tr('meditate.breathingCoachSubtitle'),
                                 style: T.caption.c(
                                   C.ivory.withValues(alpha: 0.8),
                                 ),
@@ -263,10 +269,8 @@ class _MeditateScreenState extends State<MeditateScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SectionHeader('Pranayama'),
-                    const _ShelfNote(
-                      'The classic breathing practices of yoga, each with a guided rhythm.',
-                    ),
+                    SectionHeader(tr('meditate.pranayama')),
+                    _ShelfNote(tr('meditate.pranayamaNote')),
                     HScroll(
                       gap: 12,
                       children: [
@@ -291,10 +295,8 @@ class _MeditateScreenState extends State<MeditateScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SectionHeader('Yoga Nidra'),
-                    const _ShelfNote(
-                      'Yogic sleep: lie down, listen, and rest more deeply than a nap.',
-                    ),
+                    SectionHeader(trTag('Yoga Nidra')),
+                    _ShelfNote(tr('meditate.yogaNidraNote')),
                     HScroll(
                       gap: 12,
                       children: [
@@ -313,13 +315,13 @@ class _MeditateScreenState extends State<MeditateScreen> {
               ),
             ],
             const SizedBox(height: 32),
-            const SectionHeader('All sessions'),
+            SectionHeader(tr('meditate.allSessions')),
             HScroll(
               gap: 8,
               children: [
                 for (final m in c.meditationCategories)
                   ChipPill(
-                    label: m,
+                    label: trTag(m),
                     active: cat == m,
                     onTap: () => setState(() => cat = m),
                   ),
@@ -347,7 +349,7 @@ class _MeditateScreenState extends State<MeditateScreen> {
               ),
             ),
             const SizedBox(height: 26),
-            const SectionHeader('Soundscapes'),
+            SectionHeader(tr('meditate.soundscapes')),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: GridView.count(
@@ -438,7 +440,7 @@ class _MeditateScreenState extends State<MeditateScreen> {
             ),
             if (offline.isNotEmpty) ...[
               const SizedBox(height: 36),
-              const SectionHeader('Available offline'),
+              SectionHeader(tr('meditate.availableOffline')),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
@@ -517,7 +519,10 @@ class _MedCard extends StatelessWidget {
                   children: [
                     const Icon(LucideIcons.clock, size: 13, color: C.ivory),
                     const SizedBox(width: 4),
-                    Text('${m.minutes} min', style: T.tiny.c(C.ivory)),
+                    Text(
+                      tr('common.minShort', {'n': m.minutes}),
+                      style: T.tiny.c(C.ivory),
+                    ),
                   ],
                 ),
               ),
@@ -580,14 +585,12 @@ class _ChakraPath extends StatelessWidget {
             children: [
               const Icon(LucideIcons.flower2, size: 13, color: C.gold),
               const SizedBox(width: 6),
-              Eyebrow('Root to crown', color: C.gold),
+              Eyebrow(tr('meditate.rootToCrown'), color: C.gold),
             ],
           ),
         ),
-        const SectionHeader('The chakra path'),
-        const _ShelfNote(
-          "Yoga's traditional map of seven centres, each with its own image and seed sound.",
-        ),
+        SectionHeader(tr('meditate.chakraPath')),
+        _ShelfNote(tr('meditate.chakraPathNote')),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),

@@ -6,17 +6,18 @@ import '../theme/text.dart';
 import '../theme/tokens.dart';
 import 'sheet.dart';
 import 'ui.dart';
+import '../i18n/i18n.dart';
 
 Future<void> showFeedbackSheet(BuildContext context) =>
-    showAsanovaSheet<void>(context, builder: (_) => const _FeedbackForm());
+    showEnsoSheet<void>(context, builder: (_) => const _FeedbackForm());
 
 class FeedbackInvite extends StatelessWidget {
   const FeedbackInvite({super.key});
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 24),
-    child: AsanovaButton(
-      label: 'Tell us what you need',
+    child: EnsoButton(
+      label: tr('profile.tellUsWhatYouNeed'),
       icon: LucideIcons.messagesSquare,
       trailing: LucideIcons.arrowRight,
       variant: BtnVariant.secondary,
@@ -62,9 +63,7 @@ class _FeedbackFormState extends State<_FeedbackForm> {
       if (mounted) setState(() => _sent = true);
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error = 'Could not send. Check your connection and try again.',
-        );
+        setState(() => _error = tr('feedback.sendError2'));
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -80,15 +79,18 @@ class _FeedbackFormState extends State<_FeedbackForm> {
             children: [
               const Icon(LucideIcons.circleCheck, color: C.jade, size: 48),
               const SizedBox(height: 16),
-              Text('Message received', style: T.displayMd),
+              Text(tr('feedback.received'), style: T.displayMd),
               const SizedBox(height: 8),
               Text(
-                'Thank you for helping shape Asanova.',
+                tr('feedback.thankYou'),
                 style: T.bodySm,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              AsanovaButton(label: 'Done', onTap: () => Navigator.pop(context)),
+              EnsoButton(
+                label: tr('common.done'),
+                onTap: () => Navigator.pop(context),
+              ),
             ],
           )
         : Form(
@@ -99,21 +101,21 @@ class _FeedbackFormState extends State<_FeedbackForm> {
               children: [
                 const Icon(LucideIcons.messagesSquare, size: 32, color: C.jade),
                 const SizedBox(height: 12),
-                Text('We’re listening', style: T.displayMd),
+                Text(tr('feedback.weAreListening'), style: T.displayMd),
                 const SizedBox(height: 8),
-                Text('What would make your practice better?', style: T.bodySm),
+                Text(tr('feedback.whatWouldMakeBetter'), style: T.bodySm),
                 const SizedBox(height: 24),
                 TextFormField(
                   controller: _message,
                   minLines: 3,
                   maxLines: 5,
                   maxLength: 2000,
-                  decoration: const InputDecoration(
-                    labelText: 'Your message',
-                    hintText: 'Share an idea, request or problem',
+                  decoration: InputDecoration(
+                    labelText: tr('feedback.yourMessage'),
+                    hintText: tr('feedback.shareIdea'),
                   ),
                   validator: (v) => (v ?? '').trim().isEmpty
-                      ? 'Please write a message.'
+                      ? tr('feedback.pleaseWriteMessage')
                       : null,
                 ),
                 const SizedBox(height: 12),
@@ -121,29 +123,26 @@ class _FeedbackFormState extends State<_FeedbackForm> {
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
                   maxLength: 254,
-                  decoration: const InputDecoration(
-                    labelText: 'Email (optional)',
-                    hintText: 'For a reply from our team',
+                  decoration: InputDecoration(
+                    labelText: tr('feedback.emailOptional'),
+                    hintText: tr('feedback.forReplyFromTeam'),
                   ),
                   validator: (v) =>
                       (v ?? '').trim().isEmpty ||
                           RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
                               .hasMatch((v ?? '').trim())
                       ? null
-                      : 'Enter a valid email.',
+                      : tr('feedback.enterValidEmail'),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Only your message, optional email and app version are sent. Please don’t include health or payment details.',
-                  style: T.caption,
-                ),
+                Text(tr('feedback.privacyNote'), style: T.caption),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Text(_error ?? '', style: T.bodySm.c(C.terracotta)),
                 ],
                 const SizedBox(height: 20),
-                AsanovaButton(
-                  label: 'Send message',
+                EnsoButton(
+                  label: tr('feedback.sendMessage'),
                   icon: LucideIcons.send,
                   loading: _sending,
                   onTap: _send,

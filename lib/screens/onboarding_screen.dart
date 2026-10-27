@@ -18,6 +18,7 @@ import '../theme/tokens.dart';
 import '../widgets/onboarding_experience.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/ui.dart';
+import '../i18n/i18n.dart';
 
 const _sections = ['About you', 'Your intention', 'Your body', 'Your practice'];
 
@@ -53,6 +54,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   bool _advancing = false;
   VoidCallback? _finishReply;
   final _timers = <Timer>[];
+  bool _finished = false;
 
   @override
   void initState() {
@@ -65,7 +67,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void dispose() {
     _clearTimers();
     Voice.stop();
-    Ambient.stop();
+    // The quiz music carries on into the plan reveal and the onboarding paywall, which stops it.
+    if (!_finished) Ambient.stop();
     super.dispose();
   }
 
@@ -201,6 +204,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       });
       _onStep();
     } else {
+      _finished = true;
       context.go('/plan-ready');
     }
   }
@@ -242,7 +246,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) back();
       },
-      child: AsanovaScaffold(
+      child: EnsoScaffold(
         body: Stack(
           children: [
             const Positioned.fill(child: AmbientGlow()),
@@ -255,7 +259,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       CircleBtn(
                         icon: LucideIcons.chevronLeft,
                         onTap: back,
-                        label: 'Back',
+                        label: tr('common.back'),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -312,7 +316,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Eyebrow(step.section, color: C.jade),
+                          Eyebrow(trTag(step.section), color: C.jade),
                           const SizedBox(height: 10),
                           Text(
                             step.title,
@@ -351,10 +355,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       24,
                       bottomInset(context) + 16,
                     ),
-                    child: AsanovaButton(
+                    child: EnsoButton(
                       label: step.type == 'name'
-                          ? 'Create my plan'
-                          : 'Continue',
+                          ? tr('onboarding.createMyPlan')
+                          : tr('common.continue'),
                       onTap: valid ? next : null,
                     ),
                   ),
@@ -738,7 +742,7 @@ class _GenderCards extends StatelessWidget {
           delay: 0.27,
           dy: 10,
           child: Text(
-            'Yoga for every body, at every age.',
+            tr('onboarding.yogaForEveryBody'),
             textAlign: TextAlign.center,
             style: T.caption,
           ),
@@ -1055,10 +1059,10 @@ class _ProofCard extends StatelessWidget {
           dy: 12,
           child: Row(
             children: [
-              for (final (i, s) in const [
-                ('91', 'poses on film'),
-                ('10 min', 'a day'),
-                ('Calm', 'breath-led pace'),
+              for (final (i, s) in [
+                ('91', tr('onboarding.statPosesOnFilm')),
+                (tr('common.minShort', {'n': 10}), tr('onboarding.statADay')),
+                (tr('onboarding.calm'), tr('onboarding.statBreathLedPace')),
               ].indexed) ...[
                 if (i > 0) const SizedBox(width: 10),
                 Expanded(
@@ -1095,20 +1099,19 @@ class _ProofCard extends StatelessWidget {
 }
 
 /// What to look for in each flagged area (shown on the "every pose meets you" step).
-const _gentleCopy = {
-  'wrists':
-      'Wrists: come onto forearms or fists whenever your hands bear weight.',
-  'knees': 'Knees: fold a blanket under them, or swap kneeling poses for standing ones.',
-  'back': 'Lower back: bend your knees in folds and keep backbends low and supported.',
-  'neck': 'Neck: keep it long, and never put weight on your head.',
-  'hips': 'Hips: sit on a block or cushion so your spine can stay tall.',
-  'mobility': 'Floor: chair and wall versions keep you off the floor entirely.',
+Map<String, String> get _gentleCopy => {
+  'wrists': tr('onboarding.gentleWrists'),
+  'knees': tr('onboarding.gentleKnees'),
+  'back': tr('onboarding.gentleBack'),
+  'neck': tr('onboarding.gentleNeck'),
+  'hips': tr('onboarding.gentleHips'),
+  'mobility': tr('onboarding.gentleFloor'),
 };
 
-const _gentleDefault = [
-  'Soft knees and a long spine come before depth.',
-  'If your breath strains, ease off: the breath leads every pose.',
-  'Rest in Child\'s Pose whenever you need to. That is yoga too.',
+List<String> get _gentleDefault => [
+  tr('onboarding.gentleSoftKnees'),
+  tr('onboarding.gentleEaseOff'),
+  tr('onboarding.gentleRestChildsPose'),
 ];
 
 /// The three levels of one pose family, then personal tips for the areas flagged (web `InsightCard`).
@@ -1226,7 +1229,9 @@ class _InsightCard extends StatelessWidget {
           delay: 0.25,
           dy: 10,
           child: Eyebrow(
-            flagged.isEmpty ? 'Good to know' : 'For your body',
+            flagged.isEmpty
+                ? tr('onboarding.goodToKnow')
+                : tr('onboarding.forYourBody'),
             color: C.jade,
           ),
         ),
@@ -1519,19 +1524,19 @@ class _HotspotState extends State<_Hotspot>
   }
 }
 
-const _stressCopy = [
-  'Still and clear',
-  'Mostly settled',
-  'A little busy',
-  'Busy',
-  'Racing',
+List<String> get _stressCopy => [
+  tr('onboarding.stressStillClear'),
+  tr('onboarding.stressMostlySettled'),
+  tr('onboarding.stressLittleBusy'),
+  tr('onboarding.stressBusy'),
+  tr('onboarding.stressRacing'),
 ];
-const _stressHelp = [
-  "We'll keep your practice light and joyful.",
-  'Steady flows will help you stay grounded.',
-  'Slow, breath-led yoga helps busy thoughts settle.',
-  "We'll point you to calming breath practices along the way.",
-  "We'll start with soothing, slow sessions to help you reset.",
+List<String> get _stressHelp => [
+  tr('onboarding.stressHelp1'),
+  tr('onboarding.stressHelpSteadyFlows'),
+  tr('onboarding.stressHelpSlowYoga'),
+  tr('onboarding.stressHelpBreathPractices'),
+  tr('onboarding.stressHelp5'),
 ];
 
 /// Seconds per breath of the orb: slow and easy when calm, quick when overwhelmed (web `stressBreath`).
@@ -1701,8 +1706,14 @@ class _StressScaleState extends State<_StressScale>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Still', style: T.tiny.w(FontWeight.w500)),
-              Text('Racing', style: T.tiny.w(FontWeight.w500)),
+              Text(
+                tr('onboarding.stressStill'),
+                style: T.tiny.w(FontWeight.w500),
+              ),
+              Text(
+                tr('onboarding.stressRacing'),
+                style: T.tiny.w(FontWeight.w500),
+              ),
             ],
           ),
         ],
@@ -1757,7 +1768,7 @@ class _TimeGrid extends StatelessWidget {
                         borderRadius: BorderRadius.circular(99),
                       ),
                       child: Text(
-                        'Popular',
+                        tr('onboarding.popular'),
                         style: T.tiny.copyWith(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -1789,11 +1800,11 @@ class _TimeGrid extends StatelessWidget {
   }
 }
 
-const dayLetters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+List<String> get dayLetters => trList('common.weekdayLetters');
 
 ({String time, String ampm}) formatTime(int h, int m) => (
   time: '${h % 12 == 0 ? 12 : h % 12}:${m.toString().padLeft(2, '0')}',
-  ampm: h >= 12 ? 'PM' : 'AM',
+  ampm: h >= 12 ? tr('onboarding.pm') : tr('onboarding.am'),
 );
 
 class _ReminderStep extends StatelessWidget {
@@ -1812,10 +1823,10 @@ class _ReminderStep extends StatelessWidget {
       });
     }
 
-    const presets = [
-      ('Morning', 7, 30),
-      ('Midday', 12, 30),
-      ('Evening', 19, 0),
+    final presets = [
+      (tr('onboarding.morning'), 7, 30),
+      (tr('onboarding.midday'), 12, 30),
+      (tr('onboarding.evening'), 19, 0),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1834,7 +1845,7 @@ class _ReminderStep extends StatelessWidget {
                 tone: Tone.sand,
                 size: 48,
                 onTap: () => shift(-15),
-                label: 'Earlier',
+                label: tr('onboarding.earlier'),
               ),
               Expanded(
                 child: Row(
@@ -1859,7 +1870,7 @@ class _ReminderStep extends StatelessWidget {
                 tone: Tone.sand,
                 size: 48,
                 onTap: () => shift(15),
-                label: 'Later',
+                label: tr('onboarding.later'),
               ),
             ],
           ),
@@ -1905,7 +1916,7 @@ class _ReminderStep extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         Text(
-          'Repeat on',
+          tr('onboarding.repeatOn'),
           style: T.caption.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 10),
@@ -1921,8 +1932,8 @@ class _ReminderStep extends StatelessWidget {
           time: 'now',
         ),
         const SizedBox(height: 32),
-        AsanovaButton(
-          label: 'Remind me daily',
+        EnsoButton(
+          label: tr('onboarding.remindMeDaily'),
           onTap: () async {
             app.setReminders((x) => x.enabled = true);
             onDone();
@@ -1935,8 +1946,8 @@ class _ReminderStep extends StatelessWidget {
           },
         ),
         const SizedBox(height: 8),
-        AsanovaButton(
-          label: 'Not now',
+        EnsoButton(
+          label: tr('onboarding.notNow'),
           variant: BtnVariant.ghost,
           onTap: () {
             app.setReminders((x) => x.enabled = false);
@@ -1960,36 +1971,44 @@ class _DayPicker extends StatelessWidget {
   final Color offColor;
   @override
   Widget build(BuildContext context) {
+    // seven days always fit: on the narrowest phones each day's circle shrinks, while its
+    // tap area keeps the full 44 px height
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         for (var i = 0; i < 7; i++)
-          Pressable(
-            onTap: () => onChanged(
-              days.contains(i)
-                  ? days.where((x) => x != i).toList()
-                  : ([...days, i]..sort()),
-            ),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: days.contains(i) ? C.jade : offColor,
-                shape: BoxShape.circle,
-                boxShadow: days.contains(i) || offColor == C.sand
-                    ? null
-                    : S.soft,
+          Expanded(
+            child: Pressable(
+              onTap: () => onChanged(
+                days.contains(i)
+                    ? days.where((x) => x != i).toList()
+                    : ([...days, i]..sort()),
               ),
-              child: Text(
-                dayLetters[i],
-                style: T.label.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: days.contains(i)
-                      ? C.ivory
-                      : C.ink.withValues(alpha: 0.6),
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: days.contains(i) ? C.jade : offColor,
+                      shape: BoxShape.circle,
+                      boxShadow: days.contains(i) || offColor == C.sand
+                          ? null
+                          : S.soft,
+                    ),
+                    child: Text(
+                      dayLetters[i],
+                      style: T.label.copyWith(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: days.contains(i)
+                            ? C.ivory
+                            : C.ink.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -2044,19 +2063,26 @@ class _NotificationPreview extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                'Asanova · $time',
+                time == 'now'
+                    ? tr('onboarding.notifHeaderNow')
+                    : tr('onboarding.notifHeader', {'time': time}),
                 style: T.tiny.copyWith(color: C.ivory.withValues(alpha: 0.6)),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            '${name.isNotEmpty ? '$name, your' : 'Your'} $minutes-minute practice is ready 🌿',
+            name.isNotEmpty
+                ? tr('onboarding.notifBodyWithName', {
+                    'name': name,
+                    'minutes': minutes,
+                  })
+                : tr('onboarding.notifBodyNoName', {'minutes': minutes}),
             style: T.label.c(C.ivory),
           ),
           const SizedBox(height: 2),
           Text(
-            'A few mindful minutes for balance and calm.',
+            tr('onboarding.fewMindfulMinutes'),
             style: T.caption.c(C.ivory.withValues(alpha: 0.7)),
           ),
         ],
@@ -2160,13 +2186,13 @@ class _NameStepState extends State<_NameStep> {
               decoration: InputDecoration(
                 counterText: '',
                 border: InputBorder.none,
-                hintText: 'Your first name',
+                hintText: tr('onboarding.yourFirstName'),
                 hintStyle: T.displayMd.c(C.muted.withValues(alpha: 0.5)),
               ),
             ),
           ),
           const SizedBox(height: 12),
-          Text("We'll use it to cheer you on.", style: T.caption),
+          Text(tr('onboarding.cheerYouOn'), style: T.caption),
         ],
       ),
     );

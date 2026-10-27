@@ -8,6 +8,7 @@ import '../theme/tokens.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/toast.dart';
 import '../widgets/ui.dart';
+import '../i18n/i18n.dart';
 
 /// Privacy policy / terms of use (web `legal.$doc`). Same text as the public
 /// store-listing pages, generated from scripts/content/legal.ts.
@@ -19,7 +20,7 @@ class LegalScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final legal = Content.i.legal;
     final d = doc == 'terms' ? legal.terms : legal.privacy;
-    return AsanovaScaffold(
+    return EnsoScaffold(
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: EdgeInsets.only(
@@ -41,9 +42,17 @@ class LegalScreen extends StatelessWidget {
                   Text(d.title, style: T.displayLg),
                   const SizedBox(height: 4),
                   Text(
-                    'Last updated ${legal.updated}',
+                    tr('legal.lastUpdated', {'date': legal.updated}),
                     style: T.bodySm.c(C.muted),
                   ),
+                  // legal text stays English; say so in the reader's language
+                  if (appLang != 'en') ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      tr('legal.availableInEnglish'),
+                      style: T.bodySm.c(C.muted),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   Container(
                     padding: const EdgeInsets.all(18),
@@ -68,15 +77,18 @@ class LegalScreen extends StatelessWidget {
                       ),
                   ],
                   const SizedBox(height: 18),
-                  AsanovaButton(
-                    label: 'Copy contact email',
+                  EnsoButton(
+                    label: tr('legal.copyContactEmail'),
                     variant: BtnVariant.secondary,
                     icon: LucideIcons.mail,
                     onTap: () async {
                       await Clipboard.setData(
                         ClipboardData(text: legal.contact),
                       );
-                      Toast.show('Email copied', description: legal.contact);
+                      Toast.show(
+                        tr('legal.emailCopied'),
+                        description: legal.contact,
+                      );
                     },
                   ),
                 ],

@@ -9,6 +9,7 @@ import '../theme/tokens.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/ui.dart';
 import 'history_screen.dart';
+import '../i18n/i18n.dart';
 
 class AchievementsScreen extends StatelessWidget {
   const AchievementsScreen({super.key});
@@ -18,7 +19,7 @@ class AchievementsScreen extends StatelessWidget {
     final stats = app.stats;
     final unlocked = app.unlocked;
     final all = Content.i.achievements;
-    return AsanovaScaffold(
+    return EnsoScaffold(
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: EdgeInsets.only(
@@ -37,10 +38,13 @@ class AchievementsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Achievements', style: T.displayLg),
+                  Text(tr('achievements.title'), style: T.displayLg),
                   const SizedBox(height: 4),
                   Text(
-                    '${unlocked.length} of ${all.length} unlocked',
+                    tr('achievements.unlockedOf', {
+                      'unlocked': unlocked.length,
+                      'total': all.length,
+                    }),
                     style: T.bodySm.c(C.muted),
                   ),
                   const SizedBox(height: 16),

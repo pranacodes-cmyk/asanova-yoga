@@ -1,26 +1,36 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 import '../data/content.dart';
+import '../i18n/i18n.dart';
 import '../logic/logic.dart';
+import '../services/audio_service.dart';
 import '../services/purchase_service.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
+import '../widgets/confetti.dart';
+import '../widgets/paywall_film.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/sheet.dart';
 import '../widgets/toast.dart';
-import '../widgets/confetti.dart';
 import '../widgets/ui.dart';
 
+/// Music that runs under the onboarding quiz; the onboarding paywall is where it ends.
+const _onbTrack = 'music-bamboo';
+
 /// Paywall variants:
-/// - regular: yearly with a 7-day free trial + monthly
+/// - standard (first): normal-price yearly + monthly + lifetime — no trial
+/// - regular (revealed by the close survey): yearly with a 7-day free trial + monthly + lifetime
 /// - gift: discounted yearly, monthly and lifetime — no trial
 /// - exit: one lower yearly offer after "the price feels high" — no trial
 class PaywallScreen extends StatefulWidget {
-  const PaywallScreen({super.key, required this.from, this.offer = 'regular'});
+  const PaywallScreen({super.key, required this.from, this.offer = 'standard'});
   final String from;
   final String offer;
   @override
@@ -29,17 +39,22 @@ class PaywallScreen extends StatefulWidget {
 
 class _PaywallScreenState extends State<PaywallScreen> {
   late String selected;
-  late final String variant;
+  late String variant;
   bool busy = false;
+  bool surveyOpen = false;
+  String? reveal;
 
   List<Offer> get _offers => [
     for (final o in switch (variant) {
       'gift' => giftOffers,
       'exit' => [exitOffer],
-      _ => regularOffers,
+      'regular' => regularOffers,
+      _ => standardOffers,
     })
       PurchaseService.localized(o),
   ];
+
+  int get _trialDays => regularOffers.first.trialDays;
 
   @override
   void initState() {
@@ -59,6 +74,15 @@ class _PaywallScreenState extends State<PaywallScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    // Onboarding music runs until the person leaves the onboarding paywall.
+    if (widget.from == 'onboarding' && Ambient.state.value.key == _onbTrack) {
+      Ambient.stop();
+    }
+    super.dispose();
+  }
+
   void _leave() {
     if (widget.from == 'onboarding' || !context.canPop()) {
       context.go('/');
@@ -67,25 +91,43 @@ class _PaywallScreenState extends State<PaywallScreen> {
     }
   }
 
-  /// Closing the regular paywall asks why; "price feels high" opens the
-  /// lower exit offer, anything else just leaves.
+  /// Ask once why, then reveal the matching offer before showing its paywall.
   Future<void> _close() async {
+    if (surveyOpen) return;
     final app = context.read<AppState>();
     if (!shouldAskExitSurvey(variant, app.exitSurveyAsked)) {
       _leave();
       return;
     }
     app.markExitSurveyAsked();
-    final reason = await showAsanovaSheet<String>(
+    surveyOpen = true;
+    final reason = await showEnsoSheet<String>(
       context,
-      builder: (_) => const _ExitSurvey(),
+      builder: (_) => _ExitSurvey(trialDays: _trialDays),
     );
     if (!mounted) return;
-    if (reason == 'price') {
-      context.pushReplacement('/paywall?from=${widget.from}&offer=exit');
-    } else {
-      _leave();
-    }
+    surveyOpen = false;
+    if (reason == null) return;
+    // Re-check trial eligibility right before choosing, in case offerings loaded late.
+    await PurchaseService.warmUp();
+    if (!mounted) return;
+    final next = paywallSurveyOffer(
+      reason,
+      trialAvailable: PurchaseService.trialAvailable,
+    );
+    if (next == null) return;
+    setState(() => reveal = next);
+  }
+
+  void _showRevealedOffer() {
+    final next = reveal;
+    if (next == null) return;
+    setState(() {
+      variant = next;
+      selected = _offers.first.id;
+      reveal = null;
+    });
+    context.read<AppState>().setPaywallOffer(next);
   }
 
   Future<void> _buy() async {
@@ -97,7 +139,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (!ok) {
       final error = PurchaseService.lastError;
       if (error != null) {
-        Toast.show("Purchase didn't go through", description: error);
+        Toast.show(tr('paywall.purchaseFailed'), description: error);
       }
       return;
     }
@@ -117,313 +159,417 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   String _terms(Offer offer) {
     if (offer.id == 'lifetime') {
-      return '${offer.price} once · Yours forever. No subscription.';
+      return tr('paywall.termsLifetime', {'price': offer.price});
     }
     if (offer.trialDays > 0) {
-      return '${offer.trialDays} days free, then ${offer.price}/${offer.period}.\nCancel anytime before the trial ends.';
+      return tr('paywall.termsTrial', {
+        'days': offer.trialDays,
+        'price': offer.price,
+        'period': offer.period,
+      });
     }
-    return '${offer.price}/${offer.period} · Auto-renews. Cancel anytime.';
+    return tr('paywall.termsStandard', {
+      'price': offer.price,
+      'period': offer.period,
+    });
+  }
+
+  /// Film height: the full 16:9 frame; tall phones grow it (cropping only studio wall), short
+  /// phones shrink it so the plans and the button stay on one screen (web `.paywall-cover`).
+  double _coverHeight(BuildContext context, double width) {
+    final h = MediaQuery.sizeOf(context).height;
+    if (h > 720) return math.max(width * 9 / 16, math.min(h * 0.4, 420.0));
+    return math.min(width * 9 / 16, h <= 600 ? 180.0 : 230.0);
   }
 
   @override
   Widget build(BuildContext context) {
-    final offer = _offers.firstWhere((o) => o.id == selected);
-    final isGift = variant == 'gift';
+    final offers = _offers;
+    final offer = offers.firstWhere(
+      (o) => o.id == selected,
+      orElse: () => offers.first,
+    );
     final isExit = variant == 'exit';
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && !busy) _close();
+        if (!didPop && !busy) {
+          if (reveal != null) {
+            _leave();
+          } else {
+            _close();
+          }
+        }
       },
-      child: AsanovaScaffold(
-        body: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      height: 180,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          EImage(img('hero-paywall')),
-                          Positioned(
-                            top: topInset(context) + 12,
-                            right: 20,
-                            child: CircleBtn(
-                              icon: LucideIcons.x,
-                              tone: Tone.dark,
-                              label: 'Close',
-                              onTap: busy ? null : _close,
-                            ),
-                          ),
-                          Positioned(
-                            left: 24,
-                            bottom: 20,
-                            child: Glass(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 8,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
+      child: reveal != null
+          ? _OfferReveal(
+              lower: reveal == 'exit',
+              trialDays: _trialDays,
+              offer: PurchaseService.localized(
+                reveal == 'exit' ? exitOffer : regularOffers.first,
+              ),
+              onContinue: _showRevealedOffer,
+              onSkip: _leave,
+            )
+          : EnsoScaffold(
+              body: Column(
+                children: [
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, bounds) => SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              height: _coverHeight(context, bounds.maxWidth),
+                              child: Stack(
+                                fit: StackFit.expand,
                                 children: [
-                                  const Icon(
-                                    LucideIcons.crown,
-                                    size: 16,
-                                    color: C.gold,
+                                  const PaywallFilm(),
+                                  Positioned(
+                                    top: topInset(context) + 6,
+                                    right: 16,
+                                    child: CircleBtn(
+                                      icon: LucideIcons.x,
+                                      tone: Tone.dark,
+                                      label: tr('common.close'),
+                                      onTap: busy ? null : _close,
+                                    ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'ASANOVA PLUS',
-                                    style: T.label.c(C.ivory),
+                                  // dark glass keeps the label readable over any film frame
+                                  Positioned(
+                                    left: 14,
+                                    bottom: 10,
+                                    child: Glass(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 5,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            LucideIcons.crown,
+                                            size: 12,
+                                            color: C.gold,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            tr('paywall.plusBadge'),
+                                            style: T.tiny.copyWith(
+                                              fontSize: 11,
+                                              letterSpacing: 1,
+                                              fontWeight: FontWeight.w700,
+                                              color: C.ivory,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            isExit
-                                ? 'One last offer.\nJust for you.'
-                                : isGift
-                                ? 'Pick your plan.\nStart today.'
-                                : 'Your practice.\nWithout limits.',
-                            style: T.displayMd.copyWith(
-                              fontSize: 28,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            isExit
-                                ? 'A lower yearly price, because you asked.'
-                                : 'A little movement. A calmer mind. Every day.',
-                            style: T.bodySm.c(C.muted),
-                          ),
-                          const SizedBox(height: 16),
-                          if (!isExit) ...[
-                            const _FreeVsPlus(),
-                            const SizedBox(height: 18),
-                          ],
-                          if (offer.trialDays > 0) ...[
-                            const _TrialTimeline(),
-                            const SizedBox(height: 18),
-                          ],
-                          if (isExit) ...[
-                            const _OfferUnlocked(),
-                            const SizedBox(height: 16),
-                          ],
-                          for (final o in _offers)
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _OfferCard(
-                                offer: o,
-                                selected: selected == o.id,
-                                onTap: () => setState(() => selected = o.id),
+                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    tr('paywall.heroTitle'),
+                                    style: T.displayMd.copyWith(
+                                      fontSize: 25,
+                                      height: 1.12,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  for (final (icon, text) in [
+                                    (
+                                      LucideIcons.layers,
+                                      tr('paywall.progressiveCourses', {
+                                        'n': Content.i.plans
+                                            .where((p) => p.days.length > 1)
+                                            .length,
+                                      }),
+                                    ),
+                                    (LucideIcons.leaf, tr('paywall.styles')),
+                                    (
+                                      LucideIcons.moon,
+                                      tr('paywall.guidedMeditations', {
+                                        'n': Content.i.meditations.length,
+                                      }),
+                                    ),
+                                  ])
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Row(
+                                        children: [
+                                          Icon(icon, size: 17, color: C.jade),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              text,
+                                              style: T.bodySm.copyWith(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      minHeight: 22,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          isExit
+                                              ? LucideIcons.gift
+                                              : offer.trialDays > 0
+                                              ? LucideIcons.check
+                                              : LucideIcons.crown,
+                                          size: 16,
+                                          color: C.jadeDeep,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            isExit
+                                                ? tr(
+                                                    'paywall.exclusiveYearlySaving',
+                                                  )
+                                                : offer.trialDays > 0
+                                                ? tr('paywall.daysOnUs', {
+                                                    'days': offer.trialDays,
+                                                  })
+                                                : tr(
+                                                    'paywall.everyCourseEveryClass',
+                                                  ),
+                                            style: T.caption
+                                                .s(12)
+                                                .c(C.jadeDeep),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // Subscriptions side by side; Lifetime gets its own full-width
+                                  // row below, so no price ever wraps or gets cut.
+                                  Semantics(
+                                    label: tr('paywall.subscriptionPlan'),
+                                    container: true,
+                                    child: Column(
+                                      children: [
+                                        IntrinsicHeight(
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              for (final (i, o)
+                                                  in offers
+                                                      .where(
+                                                        (o) =>
+                                                            o.id != 'lifetime',
+                                                      )
+                                                      .indexed) ...[
+                                                if (i > 0)
+                                                  const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: _OfferCard(
+                                                    offer: o,
+                                                    compact: !isExit,
+                                                    selected: selected == o.id,
+                                                    onTap: busy
+                                                        ? null
+                                                        : () => setState(
+                                                            () =>
+                                                                selected = o.id,
+                                                          ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                        for (final o in offers.where(
+                                          (o) => o.id == 'lifetime',
+                                        ))
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 8,
+                                            ),
+                                            child: _OfferCard(
+                                              offer: o,
+                                              selected: selected == o.id,
+                                              onTap: busy
+                                                  ? null
+                                                  : () => setState(
+                                                      () => selected = o.id,
+                                                    ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Full width so the links centre like the web `justify-center` row.
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: Wrap(
+                                      alignment: WrapAlignment.center,
+                                      children: [
+                                        // Other variants are only explored during onboarding; afterwards
+                                        // the app keeps that offer.
+                                        if ((variant == 'standard' ||
+                                                variant == 'regular') &&
+                                            widget.from == 'onboarding')
+                                          EnsoButton(
+                                            label: tr('paywall.viewAllPlans'),
+                                            variant: BtnVariant.ghost,
+                                            size: BtnSize.sm,
+                                            expand: false,
+                                            onTap: busy
+                                                ? null
+                                                : () => context.push(
+                                                    '/paywall?from=${widget.from}&offer=gift',
+                                                  ),
+                                          ),
+                                        EnsoButton(
+                                          label: tr('paywall.restorePurchase'),
+                                          variant: BtnVariant.ghost,
+                                          size: BtnSize.sm,
+                                          expand: false,
+                                          onTap: busy
+                                              ? null
+                                              : () async {
+                                                  final app = context
+                                                      .read<AppState>();
+                                                  final restored =
+                                                      await PurchaseService.restore();
+                                                  Toast.show(
+                                                    restored
+                                                        ? tr(
+                                                            'paywall.purchaseRestored',
+                                                          )
+                                                        : tr(
+                                                            'paywall.noPreviousPurchaseFound',
+                                                          ),
+                                                  );
+                                                  if (restored && mounted) {
+                                                    if (!app.premium.active) {
+                                                      app.setPremium('yearly');
+                                                    }
+                                                    _leave();
+                                                  }
+                                                },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          // Other variants are only explored during onboarding;
-                          // afterwards the app keeps the offer chosen there.
-                          if (variant == 'regular' &&
-                              widget.from == 'onboarding') ...[
-                            const SizedBox(height: 6),
-                            Center(
-                              child: AsanovaButton(
-                                label: 'View all plans',
-                                variant: BtnVariant.ghost,
-                                size: BtnSize.sm,
-                                onTap: () => context.push(
-                                  '/paywall?from=${widget.from}&offer=gift',
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      8,
+                      20,
+                      bottomInset(context) + 10,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        EnsoButton(
+                          label: offer.trialDays > 0
+                              ? tr('paywall.startTrialDays', {
+                                  'days': offer.trialDays,
+                                })
+                              : tr('paywall.continueWith', {
+                                  'title':
+                                      offer.id == 'gift' || offer.id == 'exit'
+                                      ? tr('paywall.yearly')
+                                      : offer.title,
+                                }),
+                          loading: busy,
+                          onTap: busy ? null : _buy,
+                        ),
+                        const SizedBox(height: 7),
+                        Text(
+                          _terms(offer),
+                          textAlign: TextAlign.center,
+                          style: T.tiny.copyWith(
+                            height: 1.35,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          children: [
+                            for (final (label, doc) in [
+                              (tr('paywall.termsOfUse'), 'terms'),
+                              (tr('paywall.privacyPolicy'), 'privacy'),
+                            ])
+                              Pressable(
+                                onTap: () => context.push('/legal/$doc'),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  child: Text(
+                                    label,
+                                    style: T.tiny.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor: C.muted,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
-                          const SizedBox(height: 10),
-                          Center(
-                            child: AsanovaButton(
-                              label: 'Restore purchase',
-                              variant: BtnVariant.ghost,
-                              size: BtnSize.sm,
-                              onTap: () async {
-                                final app = context.read<AppState>();
-                                final restored =
-                                    await PurchaseService.restore();
-                                Toast.show(
-                                  restored
-                                      ? 'Purchase restored'
-                                      : 'No previous purchase found',
-                                );
-                                if (restored && mounted) {
-                                  if (!app.premium.active) {
-                                    app.setPremium('yearly');
-                                  }
-                                  _leave();
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                24,
-                12,
-                24,
-                bottomInset(context) + 18,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AsanovaButton(
-                    label: offer.trialDays > 0
-                        ? 'Start ${offer.trialDays}-day free trial'
-                        : 'Continue with ${offer.title}',
-                    loading: busy,
-                    onTap: busy ? null : _buy,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    _terms(offer),
-                    textAlign: TextAlign.center,
-                    style: T.tiny.copyWith(
-                      height: 1.5,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (final (label, doc) in const [
-                        ('Terms of use', 'terms'),
-                        ('Privacy policy', 'privacy'),
-                      ])
-                        Pressable(
-                          onTap: () => context.push('/legal/$doc'),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            child: Text(
-                              label,
-                              style: T.tiny.copyWith(
-                                fontWeight: FontWeight.w700,
-                                decoration: TextDecoration.underline,
-                                decorationColor: C.muted,
-                              ),
-                            ),
-                          ),
                         ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// "How the trial works" timeline, like the competitor's trial screen.
-class _TrialTimeline extends StatelessWidget {
-  const _TrialTimeline();
-  @override
-  Widget build(BuildContext context) {
-    const steps = [
-      (LucideIcons.bell, 'Today', 'Full access starts — free for 7 days.'),
-      (LucideIcons.mail, 'Day 5', 'We remind you before the trial ends.'),
-      (LucideIcons.crown, 'Day 7', 'Your yearly plan begins. Cancel anytime.'),
-    ];
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: C.ivory,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: S.soft,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('How your free trial works', style: T.label),
-          const SizedBox(height: 12),
-          for (final (icon, at, what) in steps)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: const BoxDecoration(
-                      color: C.jadeSoft,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(icon, size: 16, color: C.jadeDeep),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          at,
-                          style: T.bodySm.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        Text(what, style: T.caption.c(C.muted)),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-        ],
-      ),
     );
   }
 }
 
 /// Exit survey shown once, the first time the regular paywall is closed.
 class _ExitSurvey extends StatelessWidget {
-  const _ExitSurvey();
+  const _ExitSurvey({required this.trialDays});
+  final int trialDays;
   @override
   Widget build(BuildContext context) {
-    const reasons = [
+    final reasons = [
       (
         'price',
         LucideIcons.tag,
-        'The price feels a bit high',
-        'Show me a better deal',
+        tr('paywall.reasonPriceLabel'),
+        tr('paywall.reasonPriceHint'),
       ),
       (
         'later',
         LucideIcons.leaf,
-        'I want to try the free version',
-        'Start with free sessions',
+        tr('paywall.reasonLaterLabel'),
+        tr('paywall.reasonLaterHint', {'days': trialDays}),
       ),
       (
         'unsure',
         LucideIcons.circleHelp,
-        "I'm not sure it's for me",
-        'Keep exploring first',
+        tr('paywall.reasonUnsureLabel'),
+        tr('paywall.reasonUnsureHint'),
       ),
     ];
     return Padding(
@@ -451,13 +597,13 @@ class _ExitSurvey extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Before you go…',
+            tr('paywall.beforeYouGo'),
             textAlign: TextAlign.center,
             style: T.displayMd.copyWith(fontSize: 26),
           ),
           const SizedBox(height: 6),
           Text(
-            "One quick tap helps us shape your plan.\nWhat's holding you back?",
+            tr('paywall.exitSurveySubtitle'),
             textAlign: TextAlign.center,
             style: T.bodySm.c(C.muted),
           ),
@@ -534,44 +680,122 @@ class _ExitSurvey extends StatelessWidget {
   }
 }
 
-/// Animated "special offer unlocked" ribbon on the exit offer.
-class _OfferUnlocked extends StatelessWidget {
-  const _OfferUnlocked();
+/// Offer reveal after the survey — deliberately separate from a confirmed purchase.
+class _OfferReveal extends StatelessWidget {
+  const _OfferReveal({
+    required this.lower,
+    required this.trialDays,
+    required this.offer,
+    required this.onContinue,
+    required this.onSkip,
+  });
+  final bool lower;
+  final int trialDays;
+  final Offer offer;
+  final VoidCallback onContinue;
+  final VoidCallback onSkip;
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 700),
-      curve: Curves.elasticOut,
-      builder: (_, t, child) =>
-          Transform.scale(scale: 0.6 + 0.4 * t, child: child),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          gradient: const LinearGradient(colors: [C.goldSoft, C.ivory]),
-          border: Border.all(color: C.gold.withValues(alpha: 0.5)),
-          boxShadow: S.soft,
-        ),
-        child: Row(
-          children: [
-            const Icon(LucideIcons.gift, size: 26, color: C.ink),
-            const SizedBox(width: 12),
-            Expanded(
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return Material(
+      color: C.cream,
+      child: Stack(
+        children: [
+          if (!reduceMotion)
+            const Positioned.fill(child: Confetti(height: 650)),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(28, 24, 28, 20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Special offer unlocked', style: T.label),
-                  Text(
-                    'Kept for you whenever you come back.',
-                    style: T.caption.c(C.muted),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: CircleBtn(
+                      icon: LucideIcons.x,
+                      label: tr('paywall.closeOffer'),
+                      onTap: onSkip,
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            TweenAnimationBuilder<double>(
+                              tween: Tween(begin: reduceMotion ? 1 : 0, end: 1),
+                              duration: Duration(
+                                milliseconds: reduceMotion ? 0 : 900,
+                              ),
+                              curve: Curves.elasticOut,
+                              builder: (_, t, child) =>
+                                  Transform.scale(scale: t, child: child),
+                              child: Container(
+                                width: 116,
+                                height: 116,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: C.goldSoft,
+                                  boxShadow: S.soft,
+                                ),
+                                child: Icon(
+                                  lower ? LucideIcons.gift : LucideIcons.crown,
+                                  size: 52,
+                                  color: C.jadeDeep,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            Text(
+                              lower
+                                  ? tr('paywall.lowerPriceReady')
+                                  : tr('paywall.trialReady', {
+                                      'days': trialDays,
+                                    }),
+                              textAlign: TextAlign.center,
+                              style: T.displayMd.copyWith(fontSize: 30),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              lower
+                                  ? tr('paywall.lowerPriceDetail', {
+                                      'price': offer.price,
+                                    })
+                                  : tr('paywall.trialDetail', {
+                                      'days': trialDays,
+                                    }),
+                              textAlign: TextAlign.center,
+                              style: T.body.c(C.jadeDeep),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              lower
+                                  ? tr('paywall.billedYearlyNote')
+                                  : tr('paywall.eligibleYearlyNote'),
+                              textAlign: TextAlign.center,
+                              style: T.bodySm.c(C.muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  EnsoButton(
+                    label: lower
+                        ? tr('paywall.seeLowerPrice')
+                        : tr('paywall.seeTrialPlan'),
+                    onTap: onContinue,
+                  ),
+                  const SizedBox(height: 8),
+                  EnsoButton(
+                    label: tr('paywall.continueWithFreeSessions'),
+                    variant: BtnVariant.ghost,
+                    onTap: onSkip,
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -585,27 +809,13 @@ class _Celebration extends StatelessWidget {
   Widget build(BuildContext context) {
     final trial = offer.trialDays > 0;
     final ends = DateTime.now().add(Duration(days: offer.trialDays));
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
     final perks = [
-      'Every course and single class',
-      'All guided meditations',
+      tr('paywall.perkEveryCourse'),
+      tr('paywall.perkAllMeditations'),
       if (trial)
-        'Reminder before your trial ends'
+        tr('paywall.perkTrialReminder')
       else
-        'Cancel anytime in your store account',
+        tr('paywall.perkCancelAnytime'),
     ];
     Widget rise(int i, Widget child) => TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
@@ -663,8 +873,8 @@ class _Celebration extends StatelessWidget {
                     0,
                     Text(
                       trial
-                          ? 'Your free trial\nhas started'
-                          : 'Welcome to Plus',
+                          ? tr('paywall.trialStarted')
+                          : tr('paywall.welcomeToPlus'),
                       textAlign: TextAlign.center,
                       style: T.displayMd.copyWith(fontSize: 32),
                     ),
@@ -674,8 +884,10 @@ class _Celebration extends StatelessWidget {
                     1,
                     Text(
                       trial
-                          ? 'Enjoy everything free until ${ends.day} ${months[ends.month - 1]}.'
-                          : 'Every course, class and meditation is now yours.',
+                          ? tr('paywall.enjoyUntil', {
+                              'date': DateFormat.MMMd(appLocale).format(ends),
+                            })
+                          : tr('paywall.everyCourseClassMeditation'),
                       textAlign: TextAlign.center,
                       style: T.body.c(C.muted),
                     ),
@@ -717,8 +929,8 @@ class _Celebration extends StatelessWidget {
                   const Spacer(),
                   rise(
                     6,
-                    AsanovaButton(
-                      label: 'Start practicing',
+                    EnsoButton(
+                      label: tr('paywall.startPracticing'),
                       onTap: () => Navigator.of(context).pop(),
                     ),
                   ),
@@ -732,161 +944,155 @@ class _Celebration extends StatelessWidget {
   }
 }
 
-/// What stays free and what Plus adds, counted from the shipped catalogue (web `FreeVsPlus`).
-class _FreeVsPlus extends StatelessWidget {
-  const _FreeVsPlus();
-  @override
-  Widget build(BuildContext context) {
-    final c = Content.i;
-    final courses = c.plans.where((p) => !p.isSingleSession).toList();
-    final classes = c.plans.where((p) => p.isSingleSession && p.premium);
-    final freeMeds = c.meditations.where((m) => !m.premium).length;
-    final starter = c.plan(freeStarterId);
-    final rows = [
-      if (starter != null) ('${starter.days.length}-day starter course', true),
-      ('${c.quickSessions.length} quick sessions', true),
-      ('$freeMeds free ${freeMeds == 1 ? 'meditation' : 'meditations'}', true),
-      ('All ${courses.length} courses', false),
-      ('${classes.length} single classes', false),
-      ('All ${c.meditations.length} guided meditations', false),
-    ];
-    Widget mark(bool on, {bool plus = false}) => SizedBox(
-      width: 64,
-      child: Center(
-        child: on
-            ? Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: plus ? C.jade : C.jadeSoft,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  LucideIcons.check,
-                  size: 14,
-                  color: plus ? C.ivory : C.jadeDeep,
-                ),
-              )
-            : Container(
-                width: 12,
-                height: 2,
-                decoration: BoxDecoration(
-                  color: C.muted.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-      ),
-    );
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
-      decoration: BoxDecoration(
-        color: C.ivory,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: S.soft,
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(child: Text('What you get', style: T.label)),
-              SizedBox(
-                width: 64,
-                child: Center(child: Text('Free', style: T.caption)),
-              ),
-              const SizedBox(width: 64, child: Center(child: PremiumBadge())),
-            ],
-          ),
-          const SizedBox(height: 6),
-          for (final (label, free) in rows) ...[
-            Container(height: 1, color: C.line),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 11),
-              child: Row(
-                children: [
-                  Expanded(child: Text(label, style: T.bodySm)),
-                  mark(free),
-                  mark(true, plus: true),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 class _OfferCard extends StatelessWidget {
   const _OfferCard({
     required this.offer,
     required this.selected,
     required this.onTap,
+    this.compact = false,
   });
   final Offer offer;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool compact;
+
   @override
   Widget build(BuildContext context) => Semantics(
     selected: selected,
+    inMutuallyExclusiveGroup: true,
+    button: true,
     child: Pressable(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: selected ? C.jadeSoft : C.ivory,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: selected ? C.jade : C.line, width: 2),
         ),
-        child: Row(
+        child: compact ? _compact() : _row(),
+      ),
+    ),
+  );
+
+  Widget _compact() => ConstrainedBox(
+    constraints: const BoxConstraints(minHeight: 72),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      spacing: 4,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              selected ? LucideIcons.circleCheck : LucideIcons.circle,
-              size: 22,
-              color: selected ? C.jade : C.muted,
-            ),
-            const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(offer.title, style: T.title),
-                  const SizedBox(height: 4),
-                  Text(
-                    offer.trialDays > 0
-                        ? '${offer.trialDays}-day free trial · ${offer.save}'
-                        : offer.save != null
-                        ? offer.save!
-                        : offer.period == 'once'
-                        ? 'Pay once, keep forever'
-                        : 'Billed ${offer.period == 'month' ? 'monthly' : 'yearly'}',
-                    style: T.caption.c(selected ? C.jadeDeep : C.muted),
-                  ),
-                ],
+              child: Text(
+                offer.id == 'gift' ? tr('paywall.yearly') : offer.title,
+                style: T.caption.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: C.ink,
+                  height: 1.2,
+                ),
               ),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (offer.strike != null)
-                  Text(
-                    offer.strike!,
-                    style: T.caption.copyWith(
-                      decoration: TextDecoration.lineThrough,
-                      color: C.muted,
-                    ),
-                  ),
-                Text(offer.price, style: T.title.tab),
-                const SizedBox(height: 4),
-                Text(
-                  offer.period == 'once' ? 'one time' : 'per ${offer.period}',
-                  style: T.caption,
-                ),
-              ],
+            Icon(
+              selected ? LucideIcons.circleCheck : LucideIcons.circle,
+              size: 16,
+              color: selected ? C.jade : C.muted,
+            ),
+          ],
+        ),
+        // Local prices like "₹2,799.00" stay on one line (scaled down, never cut).
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            offer.price,
+            maxLines: 1,
+            softWrap: false,
+            style: T.body.copyWith(fontWeight: FontWeight.w700).tab,
+          ),
+        ),
+        Text(
+          offer.trialDays > 0
+              ? tr('paywall.daysFree', {'days': offer.trialDays})
+              : offer.period == 'once'
+              ? tr('paywall.payOnce')
+              : tr('paywall.perPeriod', {'period': offer.period}),
+          style: T.tiny.c(selected ? C.jadeDeep : C.muted),
+        ),
+      ],
+    ),
+  );
+
+  Widget _row() => Row(
+    children: [
+      Icon(
+        selected ? LucideIcons.circleCheck : LucideIcons.circle,
+        size: 22,
+        color: selected ? C.jade : C.muted,
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              offer.id == 'gift'
+                  ? tr('paywall.yearly')
+                  : offer.id == 'exit'
+                  ? tr('paywall.yearlySpecialPrice')
+                  : offer.title,
+              style: T.bodySm.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              offer.trialDays > 0
+                  ? tr('paywall.dayFreeTrial', {'days': offer.trialDays})
+                  : offer.save != null
+                  ? offer.save!
+                  : offer.period == 'once'
+                  ? tr('paywall.payOnceKeepForever')
+                  : offer.period == 'month'
+                  ? tr('paywall.billedMonthly')
+                  : tr('paywall.billedYearly'),
+              style: T.caption.c(selected ? C.jadeDeep : C.muted),
             ),
           ],
         ),
       ),
-    ),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (offer.strike != null) ...[
+                Text(
+                  offer.strike!,
+                  style: T.tiny.copyWith(
+                    decoration: TextDecoration.lineThrough,
+                    color: C.muted,
+                  ),
+                ),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                offer.price,
+                style: T.bodySm.copyWith(fontWeight: FontWeight.w800).tab,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            offer.period == 'once'
+                ? tr('paywall.oneTime')
+                : tr('paywall.perPeriodLower', {'period': offer.period}),
+            style: T.caption,
+          ),
+        ],
+      ),
+    ],
   );
 }

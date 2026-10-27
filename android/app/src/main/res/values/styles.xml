@@ -9,7 +9,7 @@
     </style>
     <!-- Window behind the Flutter UI while running. -->
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">@color/asanova_bone</item>
+        <item name="android:windowBackground">@color/enso_cream</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>

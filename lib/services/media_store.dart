@@ -1,0 +1,153 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+
+import '../logic/lesson_media.dart';
+
+/// Where a film or clip plays from: a downloaded file, a bundled asset, or the media server.
+enum MediaOrigin { file, asset, network }
+
+typedef MediaSource = ({MediaOrigin origin, String path});
+
+/// Lesson films and coach clips downloaded from the Asanova media server and kept on the phone
+/// for offline replay (web `src/lib/media-store.ts`). Onboarding, the breath cues and the tutor
+/// films ship inside the app. Lookup order everywhere: downloaded → bundled → streamed (and then
+/// saved in the background so it plays offline next time).
+class MediaStore {
+  MediaStore._();
+  static Directory? _dir;
+  static Set<String> _bundled = const {};
+  static final Set<String> _saving = {};
+
+  /// Files the media server reported as not there (404) this run: the lesson still opens and those
+  /// lines use the device voice (a film shows its pose photo) instead of blocking on a retry loop.
+  static final Set<String> _unavailable = {};
+
+  static Future<void> init() async {
+    try {
+      final support = await getApplicationSupportDirectory();
+      _dir = Directory('${support.path}/media/v1');
+      await _dir!.create(recursive: true);
+    } catch (e) {
+      debugPrint('Asanova media dir: $e');
+    }
+    try {
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      _bundled = manifest.listAssets().toSet();
+    } catch (e) {
+      debugPrint('Asanova asset manifest: $e');
+    }
+  }
+
+  /// `video/x.mp4` ships in the app as `assets/video/x.mp4`.
+  static bool isBundled(String path) => _bundled.contains('assets/$path');
+
+  static String url(String path) => '$kMediaBase/$path';
+
+  /// The downloaded copy, or null.
+  static File? cached(String path) {
+    final d = _dir;
+    if (d == null) return null;
+    final f = File('${d.path}/$path');
+    return f.existsSync() ? f : null;
+  }
+
+  /// Where [path] plays from right now; streaming starts a background save.
+  static MediaSource source(String path) {
+    final f = cached(path);
+    if (f != null) return (origin: MediaOrigin.file, path: f.path);
+    if (isBundled(path)) {
+      return (origin: MediaOrigin.asset, path: 'assets/$path');
+    }
+    cacheInBackground(path);
+    return (origin: MediaOrigin.network, path: url(path));
+  }
+
+  /// Paths that are neither bundled nor downloaded yet.
+  static List<String> missing(Iterable<String> paths) => [
+    for (final p in paths)
+      if (!isBundled(p) && !_unavailable.contains(p) && cached(p) == null) p,
+  ];
+
+  /// Downloads [paths] (4 at a time) with real per-file progress. Throws on the first failure
+  /// after one retry per file; finished files stay saved, so a retry resumes.
+  static Future<void> download(
+    List<String> paths, {
+    required void Function(int done, int total) onProgress,
+    required bool Function() cancelled,
+  }) async {
+    final d = _dir;
+    if (d == null) throw StateError('media storage unavailable');
+    final client = http.Client();
+    var done = 0, next = 0;
+    onProgress(0, paths.length);
+    Future<void> worker() async {
+      while (next < paths.length) {
+        if (cancelled()) return;
+        final p = paths[next++];
+        try {
+          await _fetch(client, d, p);
+        } on _NotOnServer {
+          _unavailable.add(p);
+        }
+        done++;
+        if (!cancelled()) onProgress(done, paths.length);
+      }
+    }
+
+    try {
+      await Future.wait([for (var i = 0; i < 4; i++) worker()]);
+    } finally {
+      client.close();
+    }
+  }
+
+  static Future<void> _fetch(http.Client client, Directory d, String p) async {
+    Object? last;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final res = await client
+            .get(Uri.parse(url(p)))
+            .timeout(const Duration(seconds: 45));
+        if (res.statusCode == 404) throw const _NotOnServer();
+        if (res.statusCode != 200 || res.bodyBytes.isEmpty) {
+          throw HttpException('HTTP ${res.statusCode} for $p');
+        }
+        final f = File('${d.path}/$p');
+        await f.parent.create(recursive: true);
+        final tmp = File('${f.path}.part');
+        await tmp.writeAsBytes(res.bodyBytes, flush: true);
+        await tmp.rename(f.path);
+        return;
+      } on _NotOnServer {
+        rethrow;
+      } catch (e) {
+        last = e;
+      }
+    }
+    throw last ?? HttpException('download failed: $p');
+  }
+
+  /// Saves a streamed file in the background so it plays offline next time (best effort).
+  static void cacheInBackground(String path) {
+    final d = _dir;
+    if (d == null || cached(path) != null || isBundled(path)) return;
+    if (!_saving.add(path)) return;
+    final client = http.Client();
+    unawaited(
+      _fetch(client, d, path).catchError((_) {}).whenComplete(() {
+        client.close();
+        _saving.remove(path);
+      }),
+    );
+  }
+}
+
+/// The media server answered 404: retrying cannot help.
+class _NotOnServer implements Exception {
+  const _NotOnServer();
+}

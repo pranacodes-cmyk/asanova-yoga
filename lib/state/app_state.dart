@@ -10,7 +10,8 @@ import '../logic/logic.dart';
 
 /// App state — mirrors src/lib/store.ts (same keys, same defaults, same actions).
 class AudioSettings {
-  bool voice, music, beeps, haptics;
+  /// `demos`: the tutor demonstrates each new pose before the person's turn.
+  bool voice, music, beeps, haptics, demos;
   String musicTrack;
   double musicVolume, voiceRate;
   AudioSettings({
@@ -21,6 +22,7 @@ class AudioSettings {
     this.voiceRate = 0.95,
     this.beeps = true,
     this.haptics = true,
+    this.demos = true,
   });
   Map<String, dynamic> toJson() => {
     'voice': voice,
@@ -30,6 +32,7 @@ class AudioSettings {
     'voiceRate': voiceRate,
     'beeps': beeps,
     'haptics': haptics,
+    'demos': demos,
   };
   factory AudioSettings.fromJson(Map<String, dynamic> j) => AudioSettings(
     voice: j['voice'] ?? true,
@@ -39,6 +42,7 @@ class AudioSettings {
     voiceRate: (j['voiceRate'] as num? ?? 0.95).toDouble(),
     beeps: j['beeps'] ?? true,
     haptics: j['haptics'] ?? true,
+    demos: j['demos'] ?? true,
   );
 }
 
@@ -138,7 +142,7 @@ class WeightPoint {
 }
 
 const offerMinutes = 15;
-const _storageKey = 'asanova-state-v1';
+const _storageKey = 'enso-state-v1';
 
 class AppState extends ChangeNotifier {
   AppState._(this._prefs);
@@ -164,6 +168,9 @@ class AppState extends ChangeNotifier {
   List<WeightPoint> weightLog = [];
   List<String> downloads = [];
   PrivacyChoice privacy = const PrivacyChoice();
+
+  /// Chosen app language code, or null to follow the device language.
+  String? language;
 
   Timer? _saveTimer;
 
@@ -204,6 +211,7 @@ class AppState extends ChangeNotifier {
     'weightLog': weightLog.map((w) => w.toJson()).toList(),
     'downloads': downloads,
     'privacy': privacy.toJson(),
+    'language': language,
   };
 
   void _fromJson(Map<String, dynamic> j) {
@@ -252,6 +260,7 @@ class AppState extends ChangeNotifier {
     privacy = PrivacyChoice.fromJson(
       (j['privacy'] as Map?)?.cast<String, dynamic>() ?? {},
     );
+    language = j['language'] as String?;
   }
 
   void _commit() {
@@ -416,6 +425,12 @@ class AppState extends ChangeNotifier {
     _commit();
   }
 
+  /// Saves the app language (null follows the device language).
+  void setLanguage(String? code) {
+    language = code;
+    _commit();
+  }
+
   void toggleDownload(String id) {
     downloads = downloads.contains(id)
         ? downloads.where((d) => d != id).toList()
@@ -441,7 +456,8 @@ class AppState extends ChangeNotifier {
     favorites = [];
     weightLog = [];
     downloads = [];
-    // The privacy answer is a consent record, not practice data, so a reset keeps it.
+    // The privacy answer is a consent record and the language a device preference, not practice
+    // data, so a reset keeps both.
     _commit();
   }
 }

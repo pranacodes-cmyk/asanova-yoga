@@ -15,14 +15,17 @@ import '../widgets/confetti.dart';
 import '../widgets/rate_sheet.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/toast.dart';
+import '../widgets/tutor_celebration.dart';
 import '../widgets/ui.dart';
+import '../logic/lesson_media.dart' show completionLines;
+import '../i18n/i18n.dart';
 
-const _feelings = [
-  (1, 'Tense', 'frown'),
-  (2, 'Okay', 'meh'),
-  (3, 'Good', 'smile'),
-  (4, 'Great', 'sparkles'),
-  (5, 'Blissful', 'lotus'),
+List<(int, String, String)> get _feelings => [
+  (1, tr('complete.feelingTense'), 'frown'),
+  (2, tr('complete.feelingOkay'), 'meh'),
+  (3, tr('complete.feelingGood'), 'smile'),
+  (4, tr('complete.feelingGreat'), 'sparkles'),
+  (5, tr('complete.feelingBlissful'), 'lotus'),
 ];
 
 class CompleteScreen extends StatelessWidget {
@@ -36,15 +39,15 @@ class CompleteScreen extends StatelessWidget {
         app.history.where((h) => h.id == entryId).firstOrNull ??
         (app.history.isEmpty ? null : app.history.last);
     if (entry == null) {
-      return AsanovaScaffold(
+      return EnsoScaffold(
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Nothing to celebrate yet', style: T.displayMd),
+              Text(tr('complete.nothingToCelebrate'), style: T.displayMd),
               const SizedBox(height: 24),
-              AsanovaButton(
-                label: 'Go to Today',
+              EnsoButton(
+                label: tr('complete.goToToday'),
                 expand: false,
                 onTap: () => context.go('/'),
               ),
@@ -68,15 +71,32 @@ class CompleteScreen extends StatelessWidget {
     final moves = session?.items.length ?? 0;
     final minutes = (entry.durationSec / 60).round().clamp(1, 10000);
     final isMed = entry.kind == 'meditation';
+    // the course progress already includes this day: celebrate against the days before it
+    final doneBefore = [
+      for (final d
+          in (entry.planId == null
+              ? const <int>[]
+              : app.planProgress[entry.planId!]?.completedDays ??
+                    const <int>[]))
+        if (d != entry.day) d,
+    ];
+    final completion = completionOf(entry.planId, entry.day, doneBefore);
+    final coursePlan = entry.planId == null
+        ? null
+        : Content.i.plan(entry.planId!);
 
     final statTiles = [
-      (LucideIcons.clock, minutes, 'minutes'),
+      (LucideIcons.clock, minutes, tr('complete.statMinutes')),
       isMed
-          ? (LucideIcons.award, stats.meditations, 'meditations')
-          : (LucideIcons.flame, entry.kcal, 'kcal'),
+          ? (
+              LucideIcons.award,
+              stats.meditations,
+              tr('complete.statMeditations'),
+            )
+          : (LucideIcons.flame, entry.kcal, tr('complete.statKcal')),
       isMed
-          ? (LucideIcons.flame, stats.streak, 'day streak')
-          : (LucideIcons.layers, moves, 'poses'),
+          ? (LucideIcons.flame, stats.streak, tr('complete.statDayStreak'))
+          : (LucideIcons.layers, moves, tr('complete.statPoses')),
     ];
 
     return PopScope(
@@ -84,7 +104,7 @@ class CompleteScreen extends StatelessWidget {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) context.go('/');
       },
-      child: AsanovaScaffold(
+      child: EnsoScaffold(
         background: C.forest,
         lightIcons: true,
         body: Stack(
@@ -124,41 +144,50 @@ class CompleteScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  const _CheckMark(),
-                  const SizedBox(height: 20),
-                  Reveal(
-                    delay: 0.4,
-                    dy: 12,
-                    child: Column(
-                      children: [
-                        Eyebrow(
-                          isMed ? 'Meditation complete' : 'Session complete',
-                          color: C.sage,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          entry.title,
-                          textAlign: TextAlign.center,
-                          style: T.displayLg.c(C.ivory),
-                        ),
-                        const SizedBox(height: 12),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 300),
-                          child: Text(
-                            isMed
-                                ? 'Stillness is a skill. You just practiced it.'
-                                : "One breath. One practice. A little more you.",
+                  if (isMed) ...[
+                    const _CheckMark(),
+                    const SizedBox(height: 20),
+                    Reveal(
+                      delay: 0.4,
+                      dy: 12,
+                      child: Column(
+                        children: [
+                          Eyebrow(
+                            tr('complete.meditationComplete'),
+                            color: C.sage,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            entry.title,
                             textAlign: TextAlign.center,
-                            style: T.serifAccent.copyWith(
-                              fontSize: 22.4,
-                              height: 1.3,
-                              color: C.ivory.withValues(alpha: 0.8),
+                            style: T.displayLg.c(C.ivory),
+                          ),
+                          const SizedBox(height: 12),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 300),
+                            child: Text(
+                              tr('complete.stillnessSkill'),
+                              textAlign: TextAlign.center,
+                              style: T.serifAccent.copyWith(
+                                fontSize: 22.4,
+                                height: 1.3,
+                                color: C.ivory.withValues(alpha: 0.8),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                  ] else
+                    TutorCelebration(
+                      title: entry.title,
+                      completion: completion,
+                      lines: completionLines(
+                        entry.planId,
+                        entry.day,
+                        doneBefore,
+                      ),
+                    ),
                   const SizedBox(height: 28),
                   Reveal(
                     delay: 0.6,
@@ -199,6 +228,47 @@ class CompleteScreen extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (!isMed &&
+                      completion.kind == CompletionKind.day &&
+                      coursePlan != null) ...[
+                    const SizedBox(height: 12),
+                    Reveal(
+                      delay: 0.65,
+                      child: TomorrowCard(
+                        plan: coursePlan,
+                        next: completion.next!,
+                      ),
+                    ),
+                  ],
+                  if (!isMed && completion.kind == CompletionKind.course) ...[
+                    const SizedBox(height: 12),
+                    Reveal(
+                      delay: 0.65,
+                      child: Glass(
+                        radius: 24,
+                        padding: const EdgeInsets.all(18),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              LucideIcons.award,
+                              size: 26,
+                              color: C.gold,
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                tr('complete.daysDone', {
+                                  'done': completion.plan!.days.length,
+                                  'total': completion.plan!.days.length,
+                                }),
+                                style: T.label.c(C.ivory),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   if (!isMed) ...[
                     const SizedBox(height: 12),
                     Reveal(
@@ -230,7 +300,9 @@ class CompleteScreen extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '${stats.streak}-day streak',
+                                    tr('complete.streakTitle', {
+                                      'n': stats.streak,
+                                    }),
                                     style: T.label.copyWith(
                                       fontSize: 17,
                                       fontWeight: FontWeight.w700,
@@ -239,8 +311,8 @@ class CompleteScreen extends StatelessWidget {
                                   ),
                                   Text(
                                     stats.streak > 1
-                                        ? 'Your consistency is building real change.'
-                                        : 'Day one of something beautiful. Come back tomorrow.',
+                                        ? tr('complete.consistencyBuilding')
+                                        : tr('complete.dayOneBeautiful'),
                                     style: T.caption.c(
                                       C.ivory.withValues(alpha: 0.85),
                                     ),
@@ -276,7 +348,9 @@ class CompleteScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 6),
                                 Eyebrow(
-                                  'New achievement${newBadges.length > 1 ? 's' : ''}',
+                                  tr('complete.newAchievements', {
+                                    'n': newBadges.length,
+                                  }),
                                   color: C.gold,
                                 ),
                               ],
@@ -339,7 +413,7 @@ class CompleteScreen extends StatelessWidget {
                     child: Column(
                       children: [
                         Text(
-                          'How do you feel?',
+                          tr('complete.howDoYouFeel'),
                           style: T.label.c(C.ivory.withValues(alpha: 0.8)),
                         ),
                         const SizedBox(height: 12),
@@ -400,24 +474,27 @@ class CompleteScreen extends StatelessWidget {
                         icon: LucideIcons.share2,
                         tone: Tone.dark,
                         size: 56,
-                        label: 'Share',
+                        label: tr('complete.share'),
                         onTap: () async {
                           await Clipboard.setData(
                             ClipboardData(
-                              text:
-                                  'I just finished "${entry.title}" on Asanova — $minutes mindful minutes. 🌿 ${stats.streak}-day streak!',
+                              text: tr('complete.shareMessage', {
+                                'title': entry.title,
+                                'minutes': minutes,
+                                'streak': stats.streak,
+                              }),
                             ),
                           );
                           Toast.show(
-                            'Copied to clipboard',
-                            description: 'Share your progress anywhere.',
+                            tr('complete.copiedToClipboard'),
+                            description: tr('complete.shareProgressAnywhere'),
                           );
                         },
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: AsanovaButton(
-                          label: 'Done',
+                        child: EnsoButton(
+                          label: tr('common.done'),
                           variant: BtnVariant.ivory,
                           onTap: () => context.go('/'),
                         ),

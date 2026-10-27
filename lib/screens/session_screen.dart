@@ -13,6 +13,7 @@ import '../widgets/exercise_body.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/ui.dart';
 import 'plan_detail_screen.dart';
+import '../i18n/i18n.dart';
 
 class SessionScreen extends StatelessWidget {
   const SessionScreen({super.key, required this.sessionId});
@@ -29,6 +30,8 @@ class SessionScreen extends StatelessWidget {
     final exercises = [
       for (final it in session.items) (it: it, ex: Content.i.exercise(it.e)!),
     ];
+    // poses and flows this person meets for the first time: the player demonstrates them first
+    final known = practisedSet(app.history);
     final needs = exercises
         .map((x) => x.ex.equipment)
         .where((e) => e != 'none')
@@ -47,7 +50,7 @@ class SessionScreen extends StatelessWidget {
             ?.name ??
         'Zen Garden';
 
-    return AsanovaScaffold(
+    return EnsoScaffold(
       lightIcons: true,
       body: Stack(
         children: [
@@ -68,7 +71,7 @@ class SessionScreen extends StatelessWidget {
                         icon: fav ? Icons.favorite_rounded : LucideIcons.heart,
                         iconColor: fav ? C.terracotta : C.ivory,
                         tone: Tone.dark,
-                        label: 'Favorite',
+                        label: tr('session.favorite'),
                         onTap: () => app.toggleFavorite(sessionId),
                       ),
                     ],
@@ -84,18 +87,23 @@ class SessionScreen extends StatelessWidget {
                       Text(session.title, style: T.displayLg.c(C.ivory)),
                       if (locked) ...[
                         const SizedBox(height: 10),
-                        const PlusChip(label: 'Asanova Plus'),
+                        PlusChip(label: tr('session.plusChip')),
                       ],
                       const SizedBox(height: 12),
-                      Row(
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 6,
                         children: [
                           _Meta(LucideIcons.clock, formatMinutes(total)),
-                          const SizedBox(width: 16),
-                          _Meta(LucideIcons.flame, '$kcal kcal'),
-                          const SizedBox(width: 16),
+                          _Meta(
+                            LucideIcons.flame,
+                            tr('common.kcal', {'n': kcal}),
+                          ),
                           _Meta(
                             LucideIcons.layers,
-                            '${session.items.length} poses',
+                            tr('session.posesCount', {
+                              'n': session.items.length,
+                            }),
                           ),
                         ],
                       ),
@@ -129,15 +137,9 @@ class SessionScreen extends StatelessWidget {
                                 child: Text.rich(
                                   TextSpan(
                                     children: [
-                                      const TextSpan(text: "You'll need: "),
+                                      TextSpan(text: tr('session.youllNeed')),
                                       TextSpan(
-                                        text: needs
-                                            .map(
-                                              (n) =>
-                                                  n[0].toUpperCase() +
-                                                  n.substring(1),
-                                            )
-                                            .join(', '),
+                                        text: needs.map(trTag).join(', '),
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w700,
                                         ),
@@ -161,8 +163,10 @@ class SessionScreen extends StatelessWidget {
                           Expanded(
                             child: _Toggle(
                               icon: LucideIcons.mic,
-                              label: 'Voice coach',
-                              sub: audio.voice ? 'On' : 'Off',
+                              label: tr('session.voiceCoach'),
+                              sub: audio.voice
+                                  ? tr('session.on')
+                                  : tr('session.off'),
                               on: audio.voice,
                               onTap: () =>
                                   app.setAudio((a) => a.voice = !a.voice),
@@ -172,8 +176,8 @@ class SessionScreen extends StatelessWidget {
                           Expanded(
                             child: _Toggle(
                               icon: LucideIcons.music,
-                              label: 'Music',
-                              sub: audio.music ? trackName : 'Off',
+                              label: tr('session.music'),
+                              sub: audio.music ? trackName : tr('session.off'),
                               on: audio.music,
                               onTap: () =>
                                   app.setAudio((a) => a.music = !a.music),
@@ -182,7 +186,7 @@ class SessionScreen extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 28),
-                      Text('Movements', style: T.title.s(20)),
+                      Text(tr('session.movements'), style: T.title.s(20)),
                       const SizedBox(height: 12),
                       for (final (i, x) in exercises.indexed) ...[
                         if (x.it.p != null &&
@@ -219,18 +223,39 @@ class SessionScreen extends StatelessWidget {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            x.ex.name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: T.label,
+                                          Row(
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  x.ex.name,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: T.label,
+                                                ),
+                                              ),
+                                              if (demoAt(
+                                                    session.items,
+                                                    i,
+                                                    known,
+                                                  ) !=
+                                                  null) ...[
+                                                const SizedBox(width: 8),
+                                                const Flexible(
+                                                  child: _NewToday(),
+                                                ),
+                                              ],
+                                            ],
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
                                             x.ex.isAffirmation
-                                                ? 'Affirmation · Breath'
+                                                ? tr(
+                                                    'session.affirmationBreath',
+                                                  )
                                                 : x.ex.focus
                                                       .take(2)
+                                                      .map(trTag)
                                                       .join(' · '),
                                             style: T.caption,
                                           ),
@@ -262,13 +287,13 @@ class SessionScreen extends StatelessWidget {
           ),
           BottomCta(
             child: locked
-                ? AsanovaButton(
-                    label: 'Unlock with Asanova Plus',
+                ? EnsoButton(
+                    label: tr('session.unlockPlus'),
                     variant: BtnVariant.gold,
                     onTap: () => context.push('/paywall?from=session'),
                   )
-                : AsanovaButton(
-                    label: 'Begin practice',
+                : EnsoButton(
+                    label: tr('session.beginPractice'),
                     icon: Icons.play_arrow_rounded,
                     onTap: () => context.push('/player/$sessionId'),
                   ),
@@ -305,7 +330,7 @@ class _PhaseHeader extends StatelessWidget {
       children: [
         Eyebrow(label, color: C.jade),
         const Dot(color: C.muted),
-        Eyebrow('${(seconds / 60).ceil()} min'),
+        Eyebrow(tr('common.minShort', {'n': (seconds / 60).ceil()})),
       ],
     ),
   );
@@ -387,4 +412,28 @@ class _Toggle extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "New today" on a pose the person has not practised yet (web `NewToday`).
+class _NewToday extends StatelessWidget {
+  const _NewToday();
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    decoration: BoxDecoration(
+      color: C.terracotta.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Text(
+      tr('journey.newToday'),
+      maxLines: 1,
+      softWrap: false,
+      overflow: TextOverflow.ellipsis,
+      style: T.caption.copyWith(
+        fontSize: 10.5,
+        fontWeight: FontWeight.w700,
+        color: C.terracotta,
+      ),
+    ),
+  );
 }

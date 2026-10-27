@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="asanova_bone">#F5EFE6</color>
-    <color name="asanova_clay">#B65F3E</color>
-    <color name="asanova_espresso">#2B221D</color>
+    <color name="enso_cream">#F5EFE6</color>
+    <color name="enso_jade">#B65F3E</color>
+    <color name="enso_forest">#2B221D</color>
 </resources>

@@ -12,6 +12,7 @@ import '../widgets/cards.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/tab_shell.dart';
 import '../widgets/ui.dart';
+import '../i18n/i18n.dart';
 
 /// Courses tab: every multi-day journey, shelved by style (web `/courses`).
 class CoursesScreen extends StatefulWidget {
@@ -41,7 +42,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
     ];
     final shown = shelf == 'All' ? shelves : [shelf];
     final classes = widget.view == 'classes';
-    return AsanovaScaffold(
+    return EnsoScaffold(
       body: SingleChildScrollView(
         key: const PageStorageKey('courses'),
         physics: const BouncingScrollPhysics(),
@@ -57,12 +58,9 @@ class _CoursesScreenState extends State<CoursesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Courses', style: T.displayLg),
+                  Text(tr('courses.title'), style: T.displayLg),
                   const SizedBox(height: 4),
-                  Text(
-                    'Your complete practice collection.',
-                    style: T.bodySm.c(C.muted),
-                  ),
+                  Text(tr('courses.subtitle'), style: T.bodySm.c(C.muted)),
                 ],
               ),
             ),
@@ -75,7 +73,9 @@ class _CoursesScreenState extends State<CoursesScreen> {
                     if (v == 'classes') const SizedBox(width: 8),
                     Expanded(
                       child: ChipPill(
-                        label: v == 'courses' ? 'Courses' : 'Single classes',
+                        label: v == 'courses'
+                            ? tr('courses.toggleCourses')
+                            : tr('courses.toggleSingleClasses'),
                         active: widget.view == v,
                         onTap: () => context.go('/courses?view=$v'),
                       ),
@@ -87,8 +87,8 @@ class _CoursesScreenState extends State<CoursesScreen> {
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: AsanovaButton(
-                label: 'Styles & movement library',
+              child: EnsoButton(
+                label: tr('courses.stylesLibrary'),
                 variant: BtnVariant.secondary,
                 onTap: () => context.push('/movements'),
               ),
@@ -104,7 +104,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
                 children: [
                   for (final s in ['All', ...shelves])
                     ChipPill(
-                      label: s,
+                      label: trTag(s),
                       active: shelf == s,
                       onTap: () => setState(() => shelf = s),
                     ),
@@ -135,7 +135,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              SectionHeader(g),
+                              SectionHeader(trTag(g)),
                               Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 20,
@@ -203,7 +203,7 @@ class _ContinueCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Eyebrow('Your course', color: C.jade),
+                    Eyebrow(tr('courses.yourCourse'), color: C.jade),
                     const SizedBox(height: 4),
                     Text(
                       plan.title,
@@ -214,8 +214,11 @@ class _ContinueCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       completed.length >= plan.days.length
-                          ? 'Completed'
-                          : 'Next: Day $next of ${plan.days.length}',
+                          ? tr('courses.completed')
+                          : tr('courses.nextDayOfTotal', {
+                              'day': next,
+                              'total': plan.days.length,
+                            }),
                       style: T.caption,
                     ),
                   ],

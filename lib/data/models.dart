@@ -9,9 +9,41 @@ class SessionItem {
 
   /// Lesson phase label ("Warm-up", "New today", …) — authored courses only.
   final String? p;
-  const SessionItem(this.e, this.s, [this.p]);
-  factory SessionItem.fromJson(Map<String, dynamic> j) =>
-      SessionItem(j['e'] as String, (j['s'] as num).toInt(), j['p'] as String?);
+
+  /// Breath-paced flow this movement belongs to ([YogaFlow]), its round (1-based) and spoken cue.
+  final String? f;
+  final int? r;
+  final String? c;
+  const SessionItem(this.e, this.s, [this.p, this.f, this.r, this.c]);
+  factory SessionItem.fromJson(Map<String, dynamic> j) => SessionItem(
+    j['e'] as String,
+    (j['s'] as num).toInt(),
+    j['p'] as String?,
+    j['f'] as String?,
+    (j['r'] as num?)?.toInt(),
+    j['c'] as String?,
+  );
+}
+
+/// A breath-paced Sun / Moon Salutation: one movement per breath, demonstrated once as a
+/// sequence film (web `Flow`).
+class YogaFlow {
+  final String id, name, watch, go;
+  final String? sanskrit;
+
+  /// Sequence film key (`assets/video/<demo>.mp4`), or null.
+  final String? demo;
+
+  /// Exercise ids of one round, in order.
+  final List<String> moves;
+  YogaFlow.fromJson(Map<String, dynamic> j)
+    : id = j['id'],
+      name = j['name'],
+      watch = j['watch'] as String? ?? '',
+      go = j['go'] as String? ?? '',
+      sanskrit = j['sanskrit'] as String?,
+      demo = j['demo'] as String?,
+      moves = _strings(j['moves']);
 }
 
 List<SessionItem> _items(dynamic v) => (v as List)
@@ -40,6 +72,9 @@ class Exercise {
   final String? demo;
   final String? tip;
 
+  /// Spoken while the tutor demonstrates the pose ("watch first").
+  final String watch;
+
   /// Classical Sanskrit name (e.g. Vrksasana), when the pose has one.
   final String? sanskrit;
   bool get isAffirmation => kind == 'affirmation';
@@ -60,6 +95,7 @@ class Exercise {
       audio = (j['media'] as Map?)?['audio'] as String?,
       demo = j['demo'] as String?,
       tip = j['tip'] as String?,
+      watch = j['watch'] as String? ?? '',
       sanskrit = j['sanskrit'] as String?,
       image = j['image'],
       level = j['level'],
@@ -76,6 +112,9 @@ class Exercise {
 
 class Category {
   final String id, name, tagline, description, image;
+
+  /// Spoken as the style's signature class begins.
+  final String intro;
   final List<String> exerciseIds;
   final int signatureMinutes;
   final List<SessionItem> items;
@@ -86,6 +125,7 @@ class Category {
       tagline = j['tagline'],
       description = j['description'],
       image = j['image'],
+      intro = j['intro'] as String? ?? '',
       exerciseIds = _strings(j['exerciseIds']),
       signatureMinutes = (j['signatureMinutes'] as num).toInt(),
       items = _items(j['session']['items']),
@@ -94,6 +134,9 @@ class Category {
 
 class QuickSession {
   final String id, title, subtitle, image;
+
+  /// Spoken as the session begins.
+  final String intro;
   final List<SessionItem> items;
   final int kcal;
   QuickSession.fromJson(Map<String, dynamic> j)
@@ -101,6 +144,7 @@ class QuickSession {
       title = j['title'],
       subtitle = j['subtitle'],
       image = j['image'],
+      intro = j['intro'] as String? ?? '',
       items = _items(j['items']),
       kcal = (j['kcal'] as num).toInt();
 }
@@ -110,12 +154,20 @@ class PlanDay {
   final String title;
   final bool restore;
   final List<String> focus;
+
+  /// The tutor's intention for the day, spoken as it begins.
+  final String intro;
+
+  /// Spoken at the end of the previous day ("Tomorrow, …"); null on Day 1.
+  final String? tease;
   final List<SessionItem> items;
   final int kcal;
   PlanDay.fromJson(Map<String, dynamic> j)
     : day = (j['day'] as num).toInt(),
       title = j['title'],
       restore = j['restore'] as bool,
+      intro = j['intro'] as String? ?? '',
+      tease = j['tease'] as String?,
       focus = _strings(j['focus']),
       items = _items(j['items']),
       kcal = (j['kcal'] as num).toInt();
@@ -137,6 +189,12 @@ class Plan {
   final bool premium;
   final int freeDays;
   final List<String> benefits;
+
+  /// The tutor's welcome before Day 1 (courses only), after "Welcome to <title>.".
+  final List<String> welcome;
+
+  /// Spoken when the last day of a course is complete; null for single classes.
+  final String? finale;
   final List<PlanDay> days;
   bool get isSingleSession => days.length == 1;
   Plan.fromJson(Map<String, dynamic> j)
@@ -153,6 +211,8 @@ class Plan {
       equipment = j['equipment'],
       minutesPerDay = (j['minutesPerDay'] as num).toInt(),
       benefits = _strings(j['benefits']),
+      welcome = _strings(j['welcome']),
+      finale = j['finale'] as String?,
       days = (j['days'] as List)
           .map((e) => PlanDay.fromJson(e as Map<String, dynamic>))
           .toList();
