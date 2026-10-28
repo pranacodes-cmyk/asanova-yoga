@@ -70,26 +70,32 @@ void main() {
         }
       },
     );
-    test('free offer: 3 quick sessions + the 7-day starter + 4 meditations, everything else fully paid', () {
+    test('free offer: 3 quick sessions + Days 1–2 of the 30-day journey + 4 meditations, everything else fully paid', () {
       final c = Content.i;
       final starter = c.plans.firstWhere((p) => p.id == freeStarterId);
-      expect(starter.days.length, 7);
+      expect(starter.days.length, 30);
       for (final p in c.plans) {
-        final free =
-            c.quickSessions.any((q) => q.id == p.id) || p.id == freeStarterId;
+        final free = c.quickSessions.any((q) => q.id == p.id);
         expect(
           [p.premium, p.freeDays],
-          free ? [false, p.days.length] : [true, 0],
+          free ? [false, p.days.length] : [true, p.id == freeStarterId ? 2 : 0],
           reason: p.id,
         );
       }
       expect(c.meditations.where((m) => !m.premium).length, 4);
     });
-    test('the free starter is the only free course', () {
+    test('no multi-day course is fully free; the journey is the only one with free days', () {
       final free = Content.i.challengeIds
           .where((id) => !Content.i.plan(id)!.premium)
           .toList();
-      expect(free, [freeStarterId]);
+      expect(free, isEmpty);
+      expect(
+        Content.i.plans
+            .where((p) => p.premium && p.freeDays > 0)
+            .map((p) => p.id)
+            .toList(),
+        [freeStarterId],
+      );
     });
     test('free quick sessions run 10, 5 and 8 minutes including rests', () {
       expect(
@@ -201,12 +207,12 @@ void main() {
       expect(rec(style: 'restorative'), 'yin-sleep-14');
       expect(rec(style: 'power'), 'strength-21');
       expect(rec(style: 'vinyasa'), 'daily-yoga-28');
-      expect(rec(), 'yoga-foundations-21');
+      expect(rec(), 'yoga-journey-30');
     });
     test(
       'newcomers stay on gentle foundations even when they pick a strong style',
       () {
-        expect(rec(style: 'power', experience: 'new'), 'yoga-foundations-21');
+        expect(rec(style: 'power', experience: 'new'), 'yoga-journey-30');
         expect(rec(style: 'vinyasa', experience: 'new'), 'sun-salutation-14');
       },
     );
@@ -215,15 +221,15 @@ void main() {
       () {
         expect(
           rec(style: 'power', experience: 'dedicated', strengthCheck: 'notyet'),
-          'yoga-foundations-21',
+          'yoga-journey-30',
         );
         expect(
           rec(goals: ['core'], experience: 'regular', strengthCheck: 'notyet'),
-          'yoga-foundations-21',
+          'yoga-journey-30',
         );
         expect(
           rec(style: 'power', experience: 'regular', strengthCheck: 'unsure'),
-          'yoga-foundations-21',
+          'yoga-journey-30',
         );
         expect(
           rec(style: 'power', experience: 'regular', strengthCheck: 'effort'),
@@ -240,7 +246,7 @@ void main() {
       () {
         expect(rec(goals: ['core'], experience: 'regular'), 'strength-21');
         expect(rec(goals: ['core'], experience: 'dedicated'), 'strength-21');
-        expect(rec(goals: ['core'], experience: 'new'), 'yoga-foundations-21');
+        expect(rec(goals: ['core'], experience: 'new'), 'yoga-journey-30');
       },
     );
     test("'none' excludes every other gentler-option answer", () {
@@ -277,6 +283,73 @@ void main() {
     test('free programs are open on every day', () {
       final desk = Content.i.plan('desk-reset')!;
       expect(isDayLocked(desk, 1, false), false);
+    });
+    test('the 30-day journey: Days 1 and 2 are free, Day 3 onwards needs Asanova Plus', () {
+      final j = Content.i.plan('yoga-journey-30')!;
+      expect(isDayLocked(j, 1, false), false);
+      expect(isDayLocked(j, 2, false), false);
+      expect(isDayLocked(j, 3, false), true);
+      expect(isDayLocked(j, 30, false), true);
+      expect(isDayLocked(j, 3, true), false);
+      expect(freeDayCount(j), 2);
+    });
+    test(
+      "the journey's first week is beginner-safe: floor first, no straight-leg folds, Downward Dog only from Day 8",
+      () {
+        final j = Content.i.plan('yoga-journey-30')!;
+        final week1 = j.days
+            .where((d) => d.day <= 7)
+            .expand((d) => d.items.map((it) => basePoseId(it.e)))
+            .toList();
+        for (final hard in [
+          'forward-fold',
+          'downward-dog',
+          'plank',
+          'chaturanga',
+          'cobra',
+          'pigeon',
+          'triangle',
+          'crow',
+          'wheel',
+          'boat',
+        ]) {
+          expect(week1, isNot(contains(hard)), reason: hard);
+        }
+        final day1 = j.days.first.items
+            .map((it) => Content.i.exercise(it.e)!.category)
+            .toList();
+        expect(day1, isNot(contains('standing')));
+        expect(
+          j.days.firstWhere((d) => d.day == 8).learn,
+          contains('downward-dog'),
+        );
+      },
+    );
+    test('counts different poses: both sides and every breath of a flow once', () {
+      expect(
+        poseCount(const [
+          SessionItem('warrior-1-right', 30),
+          SessionItem('warrior-1-left', 30),
+          SessionItem('upward-salute', 5),
+          SessionItem('upward-salute', 5),
+          SessionItem('savasana', 60),
+        ]),
+        3,
+      );
+      final d15 = Content.i.plan('yoga-journey-30')!.days[14].items;
+      expect(poseCount(d15), lessThan(d15.length));
+    });
+    test('names what a day teaches without sides and finds its stage', () {
+      expect(
+        learnNames(['supine-twist-right', 'flow:half-sun', 'supine-twist-left']),
+        ['Supine Spinal Twist', 'Half Sun Salutation'],
+      );
+      final j = Content.i.plan('yoga-journey-30')!;
+      expect(
+        [1, 7, 8, 21, 29, 30].map((d) => chapterOf(j, d)?.title).toList(),
+        ['Arrive', 'Arrive', 'Build', 'Flow', 'Integrate', 'Integrate'],
+      );
+      expect(chapterOf(Content.i.plan('yoga-foundations-21')!, 1), isNull);
     });
     test('paid courses are fully locked from day 1 without Asanova Plus', () {
       final plan = Content.i.plan('yoga-foundations-21')!;
@@ -526,7 +599,7 @@ void main() {
   group('lesson media', () {
     late Session day1;
     const fresh = JourneyOptions(known: {}, demos: true, welcome: true);
-    setUp(() => day1 = resolveSession('plan:yoga-starter-7:1')!);
+    setUp(() => day1 = resolveSession('plan:yoga-journey-30:1')!);
     test('a first course day downloads the tutor welcome first and her celebration', () {
       final paths = sessionMediaPaths(day1, fresh, Content.i.voice);
       expect(paths.first, 'video/yf-tutor-welcome.mp4');
@@ -713,12 +786,12 @@ void main() {
       expect(freePickQuickId(2), 'evening-unwind');
     });
     test('features the next unfinished starter day, then hands back to quick sessions', () {
-      expect(freeStarterDay(7, []), 1);
-      expect(freeStarterDay(7, [1, 2]), 3);
-      expect(freeStarterDay(7, [1, 3]), 2);
-      expect(freeStarterDay(7, [1, 2, 3, 4, 5, 6, 7]), null);
+      expect(freeStarterDay(2, []), 1);
+      expect(freeStarterDay(2, [1]), 2);
+      expect(freeStarterDay(2, [2]), 1);
+      expect(freeStarterDay(2, [1, 2]), null);
       final s = Content.i.plan(freeStarterId)!;
-      expect([s.premium, s.freeDays, s.days.length], [false, 7, 7]);
+      expect([s.premium, s.freeDays, s.days.length], [true, 2, 30]);
     });
     test('leads with free only when the personal plan is locked', () {
       expect(homeLeadsWithFree(true), true);
@@ -984,7 +1057,7 @@ void main() {
     test('counts poses and flows from finished workouts as practised', () {
       HistoryEntry h(String kind) => HistoryEntry(
         id: kind,
-        sessionId: 'plan:yoga-starter-7:1',
+        sessionId: 'plan:yoga-journey-30:1',
         title: 'Day 1',
         kind: kind,
         image: 'x',
@@ -993,7 +1066,7 @@ void main() {
         kcal: 20,
       );
       final known = practisedSet([h('workout')]);
-      for (final it in Content.i.plan('yoga-starter-7')!.days.first.items) {
+      for (final it in Content.i.plan('yoga-journey-30')!.days.first.items) {
         expect(
           known.contains(it.f != null ? 'flow:${it.f}' : basePoseId(it.e)),
           isTrue,
@@ -1005,7 +1078,7 @@ void main() {
     test(
       'welcomes people to a course before Day 1 until a day is finished',
       () {
-        final course = Content.i.plan('yoga-starter-7')!;
+        final course = Content.i.plan('yoga-journey-30')!;
         expect(shouldWelcome(course, 1, []), isTrue);
         expect(shouldWelcome(course, 1, [1]), isFalse);
         expect(shouldWelcome(course, 2, []), isFalse);
@@ -1017,14 +1090,14 @@ void main() {
     );
 
     test("celebrates a course day with tomorrow's lesson, the last day as the whole course", () {
-      final c = completionOf('yoga-starter-7', 3, [1, 2]);
+      final c = completionOf('yoga-journey-30', 3, [1, 2]);
       expect(c.kind, CompletionKind.day);
       expect(c.next!.day, 4);
       expect(
-        completionOf('yoga-starter-7', 7, [1, 2, 3, 4, 5, 6]).kind,
+        completionOf('yoga-journey-30', 30, [for (var i = 1; i < 30; i++) i]).kind,
         CompletionKind.course,
       );
-      expect(completionOf('yoga-starter-7', 5, [1, 2, 3, 4, 7]).next!.day, 6);
+      expect(completionOf('yoga-journey-30', 5, [1, 2, 3, 4, 7]).next!.day, 6);
       expect(
         completionOf('sun-salutation-a', 1, []).kind,
         CompletionKind.single,

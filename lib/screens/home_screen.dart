@@ -93,7 +93,7 @@ class HomeScreen extends StatelessWidget {
     final starterDay = starter == null
         ? null
         : freeStarterDay(
-            starter.days.length,
+            freeDayCount(starter),
             app.planProgress[starter.id]?.completedDays ?? const <int>[],
           );
     final Widget planHero = Reveal(
@@ -189,7 +189,7 @@ class HomeScreen extends StatelessWidget {
                         ),
                         const Dot(),
                         Text(
-                          tr('home.poses', {'n': day.items.length}),
+                          tr('home.poses', {'n': poseCount(day.items)}),
                           style: T.caption.copyWith(
                             fontSize: 14,
                             color: C.ivory.withValues(alpha: 0.8),
@@ -733,7 +733,7 @@ class HomeScreen extends StatelessWidget {
                             'minutes': formatMinutes(
                               totalSeconds(starter.days[starterDay - 1].items),
                             ),
-                            'n': starter.days[starterDay - 1].items.length,
+                            'n': poseCount(starter.days[starterDay - 1].items),
                             'level': trTag(starter.level),
                           }),
                           cta: starterDay == 1
@@ -750,7 +750,7 @@ class HomeScreen extends StatelessWidget {
                           eyebrow: tr('home.todaysFreeSession'),
                           meta: tr('home.freeSessionMeta', {
                             'minutes': formatMinutes(totalSeconds(freeQ.items)),
-                            'n': freeQ.items.length,
+                            'n': poseCount(freeQ.items),
                           }),
                           cta: tr('home.startFreeSession'),
                           onTap: () =>
@@ -1637,7 +1637,7 @@ class _DailyPracticeCard extends StatelessWidget {
                       Text(
                         tr('home.dailyCardMeta', {
                           'minutes': formatMinutes(totalSeconds(d.items)),
-                          'n': d.items.length,
+                          'n': poseCount(d.items),
                           'affirmation': hasAffirmation ? 'yes' : 'no',
                         }),
                         maxLines: 1,

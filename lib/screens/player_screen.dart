@@ -127,6 +127,10 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
       phase == _Phase.demo ||
       phase == _Phase.turn;
 
+  /// Characters after which a spoken caption switches to the compact six-line layout (web `LONG_CAPTION`).
+  static const _longCaptionChars = 170;
+  bool get _longCaption => _voiceLed && _text.length > _longCaptionChars;
+
   @override
   void initState() {
     super.initState();
@@ -543,7 +547,6 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
   // ------------------------------------------------------------ view
 
   Widget _film() {
-    final it = item;
     final f = flow;
     final Widget film;
     if (phase == _Phase.welcome) {
@@ -561,10 +564,24 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
         playing: running,
       );
     } else {
+      // The tutor moves into each pose once (entry film) — during the rest before it, in "watch
+      // first", or as the hold begins — then the hold film loops; flow moves play their breath
+      // transition (web player, same rule).
+      final shownIndex = phase == _Phase.rest && nextEx != null
+          ? index + 1
+          : index;
+      final shownItem = items[shownIndex];
       final shown = phase == _Phase.rest && nextEx != null ? nextEx! : current;
+      final intro = shownItem.f != null
+          ? (phase == _Phase.rest ? null : shownItem.v)
+          : shown.entry;
       film = DemoFilm(
-        key: ValueKey('${shown.id}-${it.r ?? 0}'),
+        key: ValueKey(
+          '${shown.id}-${shownItem.f != null ? shownIndex : 0}-${intro ?? ''}',
+        ),
         exercise: shown,
+        intro: intro,
+        introOnly: shownItem.f != null && shownItem.v != null && !shownItem.vl,
         playing: running,
       );
     }
@@ -728,7 +745,9 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
     final top = topInset(context);
     final bottom = bottomInset(context);
     final header = switch (phase) {
-      _Phase.welcome || _Phase.intro || _Phase.ready => tr('player.getReady'),
+      // the welcome and the day's intention carry their own eyebrow, so the top bar stays quiet
+      _Phase.welcome || _Phase.intro => '',
+      _Phase.ready => tr('player.getReady'),
       _Phase.rest => tr('player.restNextMovement'),
       _ => tr('player.stepOfTotal', {
         'current': index + 1,
@@ -837,14 +856,19 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
                                       child: Text(
                                         _text,
                                         key: ValueKey(_text),
-                                        maxLines: _voiceLed ? 4 : 3,
+                                        // long spoken paragraphs (a day's intention) get more
+                                        // lines in a slightly smaller size so they are never cut
+                                        maxLines: _voiceLed
+                                            ? (_longCaption ? 6 : 4)
+                                            : 3,
                                         overflow: TextOverflow.ellipsis,
                                         textAlign: TextAlign.center,
                                         style: T.bodySm.copyWith(
                                           color: C.ivory.withValues(
                                             alpha: _voiceLed ? 0.85 : 0.65,
                                           ),
-                                          height: 1.5,
+                                          fontSize: _longCaption ? 14 : null,
+                                          height: _longCaption ? 1.45 : 1.5,
                                         ),
                                       ),
                                     ),

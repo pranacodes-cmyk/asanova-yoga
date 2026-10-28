@@ -14,7 +14,22 @@ class SessionItem {
   final String? f;
   final int? r;
   final String? c;
-  const SessionItem(this.e, this.s, [this.p, this.f, this.r, this.c]);
+
+  /// Flow moves filmed as real movement: the transition film into this shape (`yt-…`), played once.
+  final String? v;
+
+  /// True when the pose's own hold film continues after the transition; otherwise its last frame stays.
+  final bool vl;
+  const SessionItem(
+    this.e,
+    this.s, [
+    this.p,
+    this.f,
+    this.r,
+    this.c,
+    this.v,
+    this.vl = false,
+  ]);
   factory SessionItem.fromJson(Map<String, dynamic> j) => SessionItem(
     j['e'] as String,
     (j['s'] as num).toInt(),
@@ -22,6 +37,8 @@ class SessionItem {
     j['f'] as String?,
     (j['r'] as num?)?.toInt(),
     j['c'] as String?,
+    j['v'] as String?,
+    (j['vl'] as num? ?? 0) == 1,
   );
 }
 
@@ -70,6 +87,10 @@ class Exercise {
 
   /// Key of our bundled demo film (`assets/video/<demo>.mp4`), or null.
   final String? demo;
+
+  /// The tutor moving into the pose from a neutral start (`ye-…`), played once before [demo]
+  /// loops; or null.
+  final String? entry;
   final String? tip;
 
   /// Spoken while the tutor demonstrates the pose ("watch first").
@@ -94,6 +115,7 @@ class Exercise {
       video = (j['media'] as Map?)?['video'] as String?,
       audio = (j['media'] as Map?)?['audio'] as String?,
       demo = j['demo'] as String?,
+      entry = j['entry'] as String?,
       tip = j['tip'] as String?,
       watch = j['watch'] as String? ?? '',
       sanskrit = j['sanskrit'] as String?,
@@ -160,6 +182,9 @@ class PlanDay {
 
   /// Spoken at the end of the previous day ("Tomorrow, …"); null on Day 1.
   final String? tease;
+
+  /// What is new in the course today: the first exercise id of each new pose, or `flow:<id>`.
+  final List<String> learn;
   final List<SessionItem> items;
   final int kcal;
   PlanDay.fromJson(Map<String, dynamic> j)
@@ -168,9 +193,21 @@ class PlanDay {
       restore = j['restore'] as bool,
       intro = j['intro'] as String? ?? '',
       tease = j['tease'] as String?,
+      learn = _strings(j['learn']),
       focus = _strings(j['focus']),
       items = _items(j['items']),
       kcal = (j['kcal'] as num).toInt();
+}
+
+/// A stage of a long course ("Arrive", days 1–7), shown on the course page (web `PlanChapter`).
+class PlanChapter {
+  final String title, summary;
+  final int from, to;
+  PlanChapter.fromJson(Map<String, dynamic> j)
+    : title = j['title'],
+      summary = j['summary'] as String? ?? '',
+      from = (j['from'] as num).toInt(),
+      to = (j['to'] as num).toInt();
 }
 
 class Plan {
@@ -195,6 +232,9 @@ class Plan {
 
   /// Spoken when the last day of a course is complete; null for single classes.
   final String? finale;
+
+  /// Stages of the course, in order (empty for courses without chapters).
+  final List<PlanChapter> chapters;
   final List<PlanDay> days;
   bool get isSingleSession => days.length == 1;
   Plan.fromJson(Map<String, dynamic> j)
@@ -213,6 +253,9 @@ class Plan {
       benefits = _strings(j['benefits']),
       welcome = _strings(j['welcome']),
       finale = j['finale'] as String?,
+      chapters = (j['chapters'] as List? ?? const [])
+          .map((e) => PlanChapter.fromJson(e as Map<String, dynamic>))
+          .toList(),
       days = (j['days'] as List)
           .map((e) => PlanDay.fromJson(e as Map<String, dynamic>))
           .toList();

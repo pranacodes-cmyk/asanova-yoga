@@ -147,6 +147,59 @@ class _TutorCelebrationState extends State<TutorCelebration> {
   }
 }
 
+/// What a finished course day taught for the first time, as chips (web `LearnedCard`).
+class LearnedCard extends StatelessWidget {
+  const LearnedCard({super.key, required this.names});
+  final List<String> names;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: C.ivory.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: C.ivory.withValues(alpha: 0.12)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(LucideIcons.sparkles, size: 15, color: C.sage),
+            const SizedBox(width: 6),
+            Eyebrow(tr('complete.learnedToday'), color: C.sage),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final n in names)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: C.ivory.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  n,
+                  style: T.caption.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: C.ivory.withValues(alpha: 0.9),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
 /// Tomorrow's lesson under a finished course day (web `TomorrowCard`).
 class TomorrowCard extends StatelessWidget {
   const TomorrowCard({super.key, required this.plan, required this.next});
@@ -156,8 +209,11 @@ class TomorrowCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final premium = context.watch<AppState>().premium.active;
     final locked = isDayLocked(plan, next.day, premium);
+    // a locked tomorrow (the end of the free days) leads straight to Plus, not to a locked course page
     return Pressable(
-      onTap: () => context.push('/plan/${plan.id}'),
+      onTap: () => context.push(
+        locked ? '/paywall?from=plan' : '/plan/${plan.id}',
+      ),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(18),
@@ -191,30 +247,87 @@ class TomorrowCard extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(
-                  locked ? LucideIcons.lock : LucideIcons.clock,
-                  size: 14,
-                  color: C.ivory.withValues(alpha: 0.7),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    locked
-                        ? tr('complete.tomorrowLocked')
-                        : formatMinutes(totalSeconds(next.items)),
-                    style: T.caption.c(C.ivory.withValues(alpha: 0.7)),
+            if (learnNames(next.learn).isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(
+                      LucideIcons.sparkles,
+                      size: 13,
+                      color: C.terracotta,
+                    ),
                   ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      tr('plan.newInDay', {
+                        'names': learnNames(next.learn).join(', '),
+                      }),
+                      style: T.caption.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: C.ivory.withValues(alpha: 0.82),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (locked) ...[
+              const SizedBox(height: 14),
+              Container(
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  gradient: G.gold,
+                  borderRadius: BorderRadius.circular(999),
                 ),
-                Icon(
-                  LucideIcons.chevronRight,
-                  size: 18,
-                  color: C.ivory.withValues(alpha: 0.6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(LucideIcons.lock, size: 16, color: C.ink),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        tr('plan.unlockDayWithPlus', {'day': next.day}),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: T.bodySm.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: C.ink,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    LucideIcons.clock,
+                    size: 14,
+                    color: C.ivory.withValues(alpha: 0.7),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      formatMinutes(totalSeconds(next.items)),
+                      style: T.caption.c(C.ivory.withValues(alpha: 0.7)),
+                    ),
+                  ),
+                  Icon(
+                    LucideIcons.chevronRight,
+                    size: 18,
+                    color: C.ivory.withValues(alpha: 0.6),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

@@ -131,9 +131,14 @@ List<String> sessionMediaPaths(Session s, JourneyOptions o, Set<String> clips) {
       if (film != null) add(filmPath(film));
     }
     final ex = c.exercise(it.e);
-    if (ex != null && ex.demo != null && ex.video == null) {
-      add(filmPath(ex.demo!));
+    if (ex == null || ex.video != null) continue;
+    // play order: the move's transition or the pose's entry film, then its looping hold film
+    if (it.f != null) {
+      if (it.v != null) add(filmPath(it.v!));
+    } else if (ex.entry != null) {
+      add(filmPath(ex.entry!));
     }
+    if (ex.demo != null) add(filmPath(ex.demo!));
   }
   add(filmPath(kTutorCongratsFilm));
   for (final line in sessionLines(s, o)) {

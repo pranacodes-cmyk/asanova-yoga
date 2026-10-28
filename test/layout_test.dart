@@ -46,7 +46,7 @@ void main() {
   final c = Content.i;
   // a paid course with one finished day: Today shows its locked "Your personal plan" state
   final premium = c.plans.firstWhere((p) => p.premium).id;
-  const starter = 'yoga-starter-7';
+  const starter = 'yoga-journey-30';
   final quick = c.quickSessions.first.id;
   final pose = c.exercises.firstWhere((e) => e.kind == 'move').id;
   final routes = [

@@ -71,12 +71,17 @@ class Narration {
     onLine?.call(index);
     final line = lines[index];
     final est = speechSeconds([line]);
+    final started = DateTime.now();
     void next() {
       if (g != _gen) return;
       _gen++;
       _timer?.cancel();
       _safety?.cancel();
-      _timer = Timer(const Duration(milliseconds: 250), () {
+      // A voice that fails at once (no clip, no device voice) would flash the line past:
+      // keep it on screen for at least half its reading time.
+      final spent = DateTime.now().difference(started).inMilliseconds;
+      final floor = voiceOn ? (est * 500).round() - spent : 0;
+      _timer = Timer(Duration(milliseconds: 250 + (floor > 0 ? floor : 0)), () {
         index++;
         _play();
       });

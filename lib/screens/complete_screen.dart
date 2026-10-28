@@ -68,7 +68,7 @@ class CompleteScreen extends StatelessWidget {
         .where((a) => !beforeSet.contains(a))
         .toList();
     final session = resolveSession(entry.sessionId);
-    final moves = session?.items.length ?? 0;
+    final moves = session == null ? 0 : poseCount(session.items);
     final minutes = (entry.durationSec / 60).round().clamp(1, 10000);
     final isMed = entry.kind == 'meditation';
     // the course progress already includes this day: celebrate against the days before it
@@ -84,6 +84,11 @@ class CompleteScreen extends StatelessWidget {
     final coursePlan = entry.planId == null
         ? null
         : Content.i.plan(entry.planId!);
+    // what the finished course day taught for the first time
+    final learned = learnNames(
+      coursePlan?.days.where((d) => d.day == entry.day).firstOrNull?.learn ??
+          const [],
+    );
 
     final statTiles = [
       (LucideIcons.clock, minutes, tr('complete.statMinutes')),
@@ -228,6 +233,10 @@ class CompleteScreen extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (!isMed && learned.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Reveal(delay: 0.62, child: LearnedCard(names: learned)),
+                  ],
                   if (!isMed &&
                       completion.kind == CompletionKind.day &&
                       coursePlan != null) ...[

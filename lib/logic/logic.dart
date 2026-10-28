@@ -7,8 +7,8 @@ import '../i18n/i18n.dart';
 
 const restBetweenSec = 10;
 
-/// Yoga Foundations: the course every standing newcomer starts with.
-const defaultPlanId = 'yoga-foundations-21';
+/// The 30-Day Yoga Journey: the course every standing newcomer starts with.
+const defaultPlanId = 'yoga-journey-30';
 const baseWeightKg = 70.0;
 
 class Profile {
@@ -292,10 +292,31 @@ String freePickQuickId(int hour) {
   return 'desk-reset';
 }
 
-/// The free seven-day starter course every free user can follow in full.
-const freeStarterId = 'yoga-starter-7';
+/// The flagship 30-day journey: its first free days are the free path every newcomer can follow.
+const freeStarterId = 'yoga-journey-30';
 
-/// The starter day Today features for free users, or null once every day is finished.
+/// Days of [plan] open without Asanova Plus: every day of a free course, else its first `freeDays`.
+int freeDayCount(Plan plan) => plan.premium ? plan.freeDays : plan.days.length;
+
+/// Display names of what a course day teaches for the first time (`PlanDay.learn`): flows by
+/// name, poses without their side, each once, in teaching order.
+List<String> learnNames(List<String> learn) {
+  final out = <String>[];
+  for (final id in learn) {
+    final name = id.startsWith('flow:')
+        ? Content.i.flow(id.substring(5))?.name
+        : Content.i.exercise(id)?.baseName;
+    if (name != null && !out.contains(name)) out.add(name);
+  }
+  return out;
+}
+
+/// The course stage a day belongs to, or null for courses without stages.
+PlanChapter? chapterOf(Plan plan, int day) =>
+    plan.chapters.where((c) => day >= c.from && day <= c.to).firstOrNull;
+
+/// The free starter day Today features (of the first [totalDays] free days), or null once every
+/// one is finished.
 int? freeStarterDay(int totalDays, List<int> completed) {
   final done = completed.toSet();
   for (var d = 1; d <= totalDays; d++) {
@@ -455,6 +476,10 @@ List<PhaseSpan> phaseSpans(List<SessionItem> items) {
 
 /// "warrior-1-left" → "warrior-1": both sides of a pose share one base pose.
 String basePoseId(String id) => id.replaceFirst(RegExp(r'-(left|right)$'), '');
+
+/// Different poses in a lesson (both sides and every breath of a flow count once), shown as "N poses".
+int poseCount(List<SessionItem> items) =>
+    items.map((it) => basePoseId(it.e)).toSet().length;
 
 /// Seconds between items i-1 and i (mirrors the content generator): none inside one
 /// breath-paced flow, a short switch between the two sides of one pose, the session rest otherwise.

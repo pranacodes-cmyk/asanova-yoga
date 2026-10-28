@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 import '../data/content.dart';
+import '../data/models.dart';
 import '../logic/logic.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
@@ -334,7 +335,17 @@ class PlanDetailScreen extends StatelessWidget {
                         const SizedBox(height: 32),
                         Text(tr('plan.yourDays'), style: T.title.s(20)),
                         const SizedBox(height: 14),
-                        for (final d in plan.days)
+                        for (final d in plan.days) ...[
+                          if (plan.chapters.any((c) => c.from == d.day))
+                            _ChapterHeader(
+                              chapter: chapterOf(plan, d.day)!,
+                              index:
+                                  plan.chapters.indexWhere(
+                                    (c) => c.from == d.day,
+                                  ) +
+                                  1,
+                              first: d.day == 1,
+                            ),
                           Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: _DayRow(
@@ -342,9 +353,10 @@ class PlanDetailScreen extends StatelessWidget {
                               title: d.title,
                               subtitle: tr('plan.dayStatsPoses', {
                                 'minutes': formatMinutes(totalSeconds(d.items)),
-                                'n': d.items.length,
+                                'n': poseCount(d.items),
                                 'focus': d.focus.map(trTag).join(', '),
                               }),
+                              learn: learnNames(d.learn),
                               restore: d.restore,
                               done: completed.contains(d.day),
                               locked: isDayLocked(plan, d.day, premium),
@@ -353,6 +365,7 @@ class PlanDetailScreen extends StatelessWidget {
                               onTap: () => openDay(d.day),
                             ),
                           ),
+                        ],
                       ],
                     ),
                   ),
@@ -385,11 +398,47 @@ class PlanDetailScreen extends StatelessWidget {
   }
 }
 
+/// A course stage ("Stage 1 · Days 1–7 / Arrive") above its days (web `ChapterHeader`).
+class _ChapterHeader extends StatelessWidget {
+  const _ChapterHeader({
+    required this.chapter,
+    required this.index,
+    required this.first,
+  });
+  final PlanChapter chapter;
+  final int index;
+  final bool first;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(top: first ? 2 : 18, bottom: 12, left: 4),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Eyebrow(
+          tr('plan.stageEyebrow', {
+            'n': index,
+            'from': chapter.from,
+            'to': chapter.to,
+          }),
+          color: C.terracotta,
+        ),
+        const SizedBox(height: 4),
+        Text(chapter.title, style: T.title.s(18)),
+        if (chapter.summary.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(chapter.summary, style: T.caption),
+        ],
+      ],
+    ),
+  );
+}
+
 class _DayRow extends StatelessWidget {
   const _DayRow({
     required this.day,
     required this.title,
     required this.subtitle,
+    this.learn = const [],
     required this.restore,
     required this.done,
     required this.locked,
@@ -398,6 +447,9 @@ class _DayRow extends StatelessWidget {
   });
   final int day;
   final String title, subtitle;
+
+  /// What this day teaches for the first time (shown as "New: …").
+  final List<String> learn;
   final bool restore, done, locked, isNext;
   final VoidCallback onTap;
   @override
@@ -463,6 +515,31 @@ class _DayRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: T.caption,
                   ),
+                  if (learn.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          LucideIcons.sparkles,
+                          size: 12,
+                          color: C.terracotta,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            tr('plan.newInDay', {'names': learn.join(', ')}),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: T.caption.copyWith(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: C.ink.withValues(alpha: 0.72),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

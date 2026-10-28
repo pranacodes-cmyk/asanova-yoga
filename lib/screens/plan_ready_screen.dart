@@ -409,6 +409,9 @@ class _Result extends StatelessWidget {
     final p = app.profile;
     final planId = recommendFor(p);
     final plan = Content.i.plan(planId)!;
+    final premium = app.premium.active;
+    // a Plus course says up front how many days are free; later days carry a lock
+    final freeDays = premium ? 0 : (plan.premium ? freeDayCount(plan) : 0);
     Map<String, String> labels(String step) => {
       for (final o in Content.i.step(step)?.options ?? const <OnbOption>[])
         o.id: o.label,
@@ -538,6 +541,30 @@ class _Result extends StatelessWidget {
                             DecoratedBox(
                               decoration: BoxDecoration(gradient: G.scrim),
                             ),
+                            // a Plus course says up front how many days are free
+                            if (freeDays > 0)
+                              Positioned(
+                                right: 16,
+                                top: 16,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: C.ivory.withValues(alpha: 0.92),
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
+                                  child: Text(
+                                    tr('plan.firstDaysFree', {'n': freeDays}),
+                                    style: T.tiny.copyWith(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: C.jadeDeep,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             Positioned(
                               left: 20,
                               right: 20,
@@ -857,7 +884,7 @@ class _Result extends StatelessWidget {
                                               (totalSeconds(d.items) / 60)
                                                   .round(),
                                             ),
-                                            'poses': d.items.length,
+                                            'poses': poseCount(d.items),
                                           }),
                                           style: T.tiny.w(FontWeight.w500),
                                         ),
@@ -865,24 +892,26 @@ class _Result extends StatelessWidget {
                                     ),
                                   ),
                                   if (i == 0)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: C.jadeSoft,
-                                        borderRadius: BorderRadius.circular(99),
-                                      ),
-                                      child: Text(
-                                        tr('common.today'),
-                                        style: T.tiny.copyWith(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: C.jadeDeep,
+                                    _DayChip(tr('common.today'))
+                                  else if (isDayLocked(plan, d.day, premium))
+                                    Semantics(
+                                      label: tr('plan.plusLabel'),
+                                      child: Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: const BoxDecoration(
+                                          color: C.sand,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          LucideIcons.lock,
+                                          size: 14,
+                                          color: C.muted,
                                         ),
                                       ),
-                                    ),
+                                    )
+                                  else if (plan.premium && !premium)
+                                    _DayChip(tr('common.free')),
                                 ],
                               ),
                             ),
@@ -941,4 +970,26 @@ class _Result extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The small jade chip on a first-week day ("Today", "Free") in the plan reveal.
+class _DayChip extends StatelessWidget {
+  const _DayChip(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(
+      color: C.jadeSoft,
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Text(
+      label,
+      style: T.tiny.copyWith(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: C.jadeDeep,
+      ),
+    ),
+  );
 }

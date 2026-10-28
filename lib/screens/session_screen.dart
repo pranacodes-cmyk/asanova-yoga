@@ -102,7 +102,7 @@ class SessionScreen extends StatelessWidget {
                           _Meta(
                             LucideIcons.layers,
                             tr('session.posesCount', {
-                              'n': session.items.length,
+                              'n': poseCount(session.items),
                             }),
                           ),
                         ],

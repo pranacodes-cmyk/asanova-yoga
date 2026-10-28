@@ -20,6 +20,11 @@ Size filmBox(VideoPlayerController c, {required bool square}) =>
 /// stream from the media server; licensed media streams from its own URL. Shows the poster
 /// photo until the film is ready, and keeps it on failure. Photo and film share one framing,
 /// so the hand-over never jumps; callers give the film a box never taller than wide.
+///
+/// [intro] plays one film first — the tutor moving into the pose (`ye-…`) or a flow transition
+/// (`yt-…`) — ending on the pose's own still, so the looping hold film takes over without a jump.
+/// With [introOnly] the intro's last frame stays instead (a transition that ends on a different
+/// camera angle than the hold film).
 class DemoFilm extends StatefulWidget {
   DemoFilm({
     super.key,
@@ -27,8 +32,11 @@ class DemoFilm extends StatefulWidget {
     this.playing = true,
     this.loop = true,
     this.alignment = Alignment.center,
+    String? intro,
+    this.introOnly = false,
   }) : film = exercise.video == null ? exercise.demo : null,
        licensed = exercise.video,
+       intro = exercise.video == null ? intro : null,
        poster = exercise.image;
 
   /// A film by key (flow sequence or tutor film) over the [poster] image.
@@ -39,24 +47,63 @@ class DemoFilm extends StatefulWidget {
     this.playing = true,
     this.loop = true,
     this.alignment = Alignment.center,
-  }) : licensed = null;
+  }) : licensed = null,
+       intro = null,
+       introOnly = false;
 
-  final String? film, licensed;
+  final String? film, licensed, intro;
   final String poster;
-  final bool playing, loop;
+  final bool playing, loop, introOnly;
   final Alignment alignment;
   @override
   State<DemoFilm> createState() => _DemoFilmState();
 }
 
+VideoPlayerController _ourFilm(String film, VideoPlayerOptions options) {
+  final src = MediaStore.source(filmPath(film));
+  return switch (src.origin) {
+    MediaOrigin.file => VideoPlayerController.file(
+      File(src.path),
+      videoPlayerOptions: options,
+    ),
+    MediaOrigin.asset => VideoPlayerController.asset(
+      src.path,
+      videoPlayerOptions: options,
+    ),
+    MediaOrigin.network => VideoPlayerController.networkUrl(
+      Uri.parse(src.path),
+      videoPlayerOptions: options,
+    ),
+  };
+}
+
 class _DemoFilmState extends State<DemoFilm> {
-  VideoPlayerController? _c;
-  bool _ready = false;
+  VideoPlayerController? _c, _intro;
+  bool _ready = false, _introReady = false, _introDone = true;
+
+  bool get _loopActive => _introDone && !widget.introOnly;
 
   @override
   void initState() {
     super.initState();
     final options = VideoPlayerOptions(mixWithOthers: true);
+    if (widget.intro != null) {
+      final i = _ourFilm(widget.intro!, options);
+      _intro = i;
+      _introDone = false;
+      i.setLooping(false);
+      i.setVolume(0);
+      i.addListener(_onIntro);
+      i
+          .initialize()
+          .then((_) {
+            if (!mounted) return;
+            setState(() => _introReady = true);
+            if (widget.playing) i.play();
+          })
+          .catchError((Object _) => _finishIntro());
+    }
+    if (widget.introOnly && widget.intro != null) return;
     final VideoPlayerController c;
     if (widget.licensed != null) {
       c = VideoPlayerController.networkUrl(
@@ -64,21 +111,7 @@ class _DemoFilmState extends State<DemoFilm> {
         videoPlayerOptions: options,
       );
     } else if (widget.film != null) {
-      final src = MediaStore.source(filmPath(widget.film!));
-      c = switch (src.origin) {
-        MediaOrigin.file => VideoPlayerController.file(
-          File(src.path),
-          videoPlayerOptions: options,
-        ),
-        MediaOrigin.asset => VideoPlayerController.asset(
-          src.path,
-          videoPlayerOptions: options,
-        ),
-        MediaOrigin.network => VideoPlayerController.networkUrl(
-          Uri.parse(src.path),
-          videoPlayerOptions: options,
-        ),
-      };
+      c = _ourFilm(widget.film!, options);
     } else {
       return;
     }
@@ -90,23 +123,44 @@ class _DemoFilmState extends State<DemoFilm> {
         .then((_) {
           if (!mounted) return;
           setState(() => _ready = true);
-          if (widget.playing) c.play();
+          if (widget.playing && _loopActive) c.play();
         })
         .catchError((Object _) {
           // photo stays visible
         });
   }
 
+  void _onIntro() {
+    final v = _intro?.value;
+    if (v == null || _introDone || !v.isInitialized) return;
+    if (v.hasError || (v.duration > Duration.zero && v.position >= v.duration)) {
+      _finishIntro();
+    }
+  }
+
+  void _finishIntro() {
+    if (!mounted || _introDone) return;
+    setState(() => _introDone = true);
+    final c = _c;
+    if (c != null && _ready && widget.playing && _loopActive) c.play();
+  }
+
   @override
   void didUpdateWidget(covariant DemoFilm old) {
     super.didUpdateWidget(old);
+    final i = _intro;
+    if (i != null && _introReady && !_introDone) {
+      widget.playing ? i.play() : i.pause();
+    }
     final c = _c;
     if (c == null || !_ready) return;
-    widget.playing ? c.play() : c.pause();
+    widget.playing && _loopActive ? c.play() : c.pause();
   }
 
   @override
   void dispose() {
+    _intro?.removeListener(_onIntro);
+    _intro?.dispose();
     _c?.dispose();
     super.dispose();
   }
@@ -136,6 +190,17 @@ class _DemoFilmState extends State<DemoFilm> {
                 child: SizedBox.fromSize(
                   size: filmBox(c, square: widget.licensed == null),
                   child: VideoPlayer(c),
+                ),
+              ),
+            ),
+          if (_intro != null && _introReady && (!_introDone || widget.introOnly))
+            ClipRect(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                alignment: widget.alignment,
+                child: SizedBox.fromSize(
+                  size: filmBox(_intro!, square: true),
+                  child: VideoPlayer(_intro!),
                 ),
               ),
             ),
