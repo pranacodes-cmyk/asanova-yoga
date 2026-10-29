@@ -101,21 +101,21 @@ class CoachLines {
 
   // ---------------------------------------------------------------- guided journey
   /// The tutor demonstrates a new pose before the person's turn.
-  static List<String> demo(Exercise ex) => [
-    tr('coach.watchFirst'),
+  static List<String> demo(Exercise ex, [bool cue = true]) => [
+    if (cue) tr('coach.watchFirst'),
     tr('coach.name', {'name': ex.name}),
     ex.watch,
   ];
 
   /// The person's turn after a demo: the first instruction step.
-  static List<String> yourTurn(Exercise ex) => [
-    tr('coach.yourTurn'),
+  static List<String> yourTurn(Exercise ex, [bool cue = true]) => [
+    if (cue) tr('coach.yourTurn'),
     ex.steps.isNotEmpty ? ex.steps.first : ex.cue,
   ];
 
   /// The tutor shows one round of a Sun / Moon Salutation.
-  static List<String> flowDemo(YogaFlow f) => [
-    tr('coach.watchFirst'),
+  static List<String> flowDemo(YogaFlow f, [bool cue = true]) => [
+    if (cue) tr('coach.watchFirst'),
     tr('coach.name', {'name': f.name}),
     f.watch,
   ];

@@ -15,11 +15,8 @@ class SessionItem {
   final int? r;
   final String? c;
 
-  /// Flow moves filmed as real movement: the transition film into this shape (`yt-…`), played once.
-  final String? v;
-
-  /// True when the pose's own hold film continues after the transition; otherwise its last frame stays.
-  final bool vl;
+  /// Flow pace: 2 = learning pace (two breaths in every one-breath movement), else 1.
+  final int k;
   const SessionItem(
     this.e,
     this.s, [
@@ -27,8 +24,7 @@ class SessionItem {
     this.f,
     this.r,
     this.c,
-    this.v,
-    this.vl = false,
+    this.k = 1,
   ]);
   factory SessionItem.fromJson(Map<String, dynamic> j) => SessionItem(
     j['e'] as String,
@@ -37,9 +33,24 @@ class SessionItem {
     j['f'] as String?,
     (j['r'] as num?)?.toInt(),
     j['c'] as String?,
-    j['v'] as String?,
-    (j['vl'] as num? ?? 0) == 1,
+    (j['k'] as num?)?.toInt() ?? 1,
   );
+}
+
+/// One round of a flow as continuous film, cut into parts at movement boundaries: part p plays
+/// from the start of move [from][p] of the round (web `RoundFilm`); the players switch exactly when
+/// that move's breath cue begins.
+class RoundFilmDef {
+  final List<String> films;
+  final List<int> from;
+  const RoundFilmDef(this.films, this.from);
+  static RoundFilmDef? fromJson(dynamic j) {
+    if (j is! Map) return null;
+    return RoundFilmDef(
+      _strings(j['films']),
+      (j['from'] as List? ?? const []).map((e) => (e as num).toInt()).toList(),
+    );
+  }
 }
 
 /// A breath-paced Sun / Moon Salutation: one movement per breath, demonstrated once as a
@@ -51,6 +62,15 @@ class YogaFlow {
   /// Sequence film key (`assets/video/<demo>.mp4`), or null.
   final String? demo;
 
+  /// A round at one breath per movement as continuous film timed to the breath cues, or null.
+  final RoundFilmDef? round;
+
+  /// The same round at learning pace, or null.
+  final RoundFilmDef? roundSlow;
+
+  /// Image key of the round films' first frame (shown until the film plays), or null.
+  final String? poster;
+
   /// Exercise ids of one round, in order.
   final List<String> moves;
   YogaFlow.fromJson(Map<String, dynamic> j)
@@ -60,6 +80,9 @@ class YogaFlow {
       go = j['go'] as String? ?? '',
       sanskrit = j['sanskrit'] as String?,
       demo = j['demo'] as String?,
+      round = RoundFilmDef.fromJson(j['round']),
+      roundSlow = RoundFilmDef.fromJson(j['roundSlow']),
+      poster = j['poster'] as String?,
       moves = _strings(j['moves']);
 }
 

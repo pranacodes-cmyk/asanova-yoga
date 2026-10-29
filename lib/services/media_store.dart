@@ -53,7 +53,7 @@ class MediaStore {
     final d = _dir;
     if (d == null) return null;
     final f = File('${d.path}/$path');
-    return f.existsSync() ? f : null;
+    return f.existsSync() && f.lengthSync() > 0 ? f : null;
   }
 
   /// Where [path] plays from right now; streaming starts a background save.
@@ -73,8 +73,15 @@ class MediaStore {
       if (!isBundled(p) && !_unavailable.contains(p) && cached(p) == null) p,
   ];
 
-  /// Downloads [paths] (4 at a time) with real per-file progress. Throws on the first failure
-  /// after one retry per file; finished files stay saved, so a retry resumes.
+  /// Files fetched in parallel; a slow or broken file never holds up the others.
+  static const parallel = 8;
+
+  /// Tries per file: quick back-off retries cover flaky mobile networks.
+  static const attempts = 4;
+
+  /// Downloads [paths] ([parallel] at a time) with real per-file progress. Every file is checked
+  /// against the server's byte count; files that still fail get one more pass at the end, and only
+  /// then is an error thrown. Finished files stay saved, so a retry resumes.
   static Future<void> download(
     List<String> paths, {
     required void Function(int done, int total) onProgress,
@@ -83,24 +90,38 @@ class MediaStore {
     final d = _dir;
     if (d == null) throw StateError('media storage unavailable');
     final client = http.Client();
-    var done = 0, next = 0;
+    var done = 0;
     onProgress(0, paths.length);
-    Future<void> worker() async {
-      while (next < paths.length) {
-        if (cancelled()) return;
-        final p = paths[next++];
-        try {
-          await _fetch(client, d, p);
-        } on _NotOnServer {
-          _unavailable.add(p);
+    Future<List<String>> pass(List<String> list) async {
+      final failed = <String>[];
+      var next = 0;
+      Future<void> worker() async {
+        while (next < list.length) {
+          if (cancelled()) return;
+          final p = list[next++];
+          try {
+            await _fetch(client, d, p);
+          } on _NotOnServer {
+            _unavailable.add(p);
+          } catch (e) {
+            failed.add(p);
+            continue;
+          }
+          done++;
+          if (!cancelled()) onProgress(done, paths.length);
         }
-        done++;
-        if (!cancelled()) onProgress(done, paths.length);
       }
+
+      await Future.wait([for (var i = 0; i < parallel; i++) worker()]);
+      return failed;
     }
 
     try {
-      await Future.wait([for (var i = 0; i < 4; i++) worker()]);
+      var failed = await pass(paths);
+      if (failed.isNotEmpty && !cancelled()) failed = await pass(failed);
+      if (failed.isNotEmpty && !cancelled()) {
+        throw HttpException('${failed.length} files failed to download');
+      }
     } finally {
       client.close();
     }
@@ -108,19 +129,29 @@ class MediaStore {
 
   static Future<void> _fetch(http.Client client, Directory d, String p) async {
     Object? last;
-    for (var attempt = 0; attempt < 2; attempt++) {
+    for (var attempt = 0; attempt < attempts; attempt++) {
+      if (attempt > 0) {
+        await Future<void>.delayed(Duration(milliseconds: 400 * attempt * attempt));
+      }
       try {
         final res = await client
             .get(Uri.parse(url(p)))
-            .timeout(const Duration(seconds: 45));
+            .timeout(const Duration(seconds: 60));
         if (res.statusCode == 404) throw const _NotOnServer();
         if (res.statusCode != 200 || res.bodyBytes.isEmpty) {
           throw HttpException('HTTP ${res.statusCode} for $p');
+        }
+        final expected = res.contentLength;
+        if (expected != null && expected > 0 && expected != res.bodyBytes.length) {
+          throw HttpException('incomplete $p: ${res.bodyBytes.length}/$expected bytes');
         }
         final f = File('${d.path}/$p');
         await f.parent.create(recursive: true);
         final tmp = File('${f.path}.part');
         await tmp.writeAsBytes(res.bodyBytes, flush: true);
+        if (await tmp.length() != res.bodyBytes.length) {
+          throw HttpException('write failed for $p');
+        }
         await tmp.rename(f.path);
         return;
       } on _NotOnServer {

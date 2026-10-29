@@ -335,6 +335,8 @@ class AppState extends ChangeNotifier {
           [...current.completedDays, entry.day!]..sort(),
         );
       }
+      // finishing a course day makes that course the one Today follows
+      activePlanId = entry.planId!;
     }
     history = [...history, entry];
     _commit();

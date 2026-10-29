@@ -19,6 +19,8 @@ import '../theme/text.dart';
 import '../theme/tokens.dart';
 import '../widgets/demo_film.dart';
 import '../widgets/lesson_prepare.dart';
+import '../widgets/player_caption.dart';
+import '../widgets/round_film.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/sheet.dart';
 import '../widgets/ui.dart';
@@ -110,7 +112,11 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
   double elapsed = 0, work = 0;
   bool spokeHalf = false, finished = false, yourTurn = false;
   int stepIdx = 0;
+
+  /// Bumped whenever a part of a flow's round film starts, so the film restarts with the breath cue.
+  int partRun = 0;
   String caption = '';
+  int captionRun = 0;
   Narration? _narr;
   Timer? _tick, _turnTimer;
   DateTime _last = DateTime.now();
@@ -179,7 +185,12 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
       voiceOn: app.audio.voice,
       rate: app.audio.voiceRate,
       onLine: (k) {
-        if (mounted) setState(() => caption = lines[k]);
+        if (mounted) {
+          setState(() {
+            caption = lines[k];
+            captionRun++;
+          });
+        }
       },
       onDone: () {
         if (mounted && !finished) then();
@@ -250,8 +261,11 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
     Sfx.play('sfx-chime', 0.35);
     _narrate(
       f != null && it.f != null
-          ? CoachLines.flowDemo(f)
-          : CoachLines.demo(Content.i.exercise(it.e)!),
+          ? CoachLines.flowDemo(f, demoCueAt(session, i, widget.opts))
+          : CoachLines.demo(
+              Content.i.exercise(it.e)!,
+              demoCueAt(session, i, widget.opts),
+            ),
       () => f != null ? _enterTurn(i) : _startWork(i, afterDemo: true),
     );
   }
@@ -332,6 +346,7 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
       spokeHalf = false;
       stepIdx = 0;
       yourTurn = afterDemo;
+      if (inFlow && roundPartAt(items, i)?.start == i) partRun++;
     });
     _turnTimer?.cancel();
     if (afterDemo) {
@@ -346,7 +361,11 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
     } else {
       Future.delayed(const Duration(milliseconds: 350), () {
         if (mounted && phase == _Phase.work && index == i) {
-          _say(afterDemo ? CoachLines.yourTurn(ex) : CoachLines.start(ex));
+          _say(
+            afterDemo
+                ? CoachLines.yourTurn(ex, demoCueAt(session, i, widget.opts))
+                : CoachLines.start(ex),
+          );
         }
       });
     }
@@ -435,25 +454,36 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
         _startWork(index);
       case _Phase.work:
       case _Phase.rest:
-        if (index >= items.length - 1) {
+        // the next screen: a whole flow is one step, so next skips past all of its rounds
+        final next = phase == _Phase.rest ? index + 1 : screenEnd(items, index);
+        if (next >= items.length) {
           _finish();
           return;
         }
         Voice.stop();
-        _beginItem(index + 1);
+        _beginItem(next);
     }
     if (!running) _togglePlay();
   }
 
   void _skipPrev() {
     Voice.stop();
-    final spent = item.s - remaining;
+    final first = screenStart(items, index);
+    var spent = item.s - remaining;
+    for (var k = first; k < index; k++) {
+      spent += items[k].s;
+    }
+    // more than a few seconds in: this screen again (a flow from its first round); else the one before
     if (phase == _Phase.work && spent > 3) {
-      _startWork(index);
+      _startWork(first);
     } else if (phase == _Phase.welcome || phase == _Phase.intro) {
       phase == _Phase.welcome ? _enterWelcome() : _enterIntro();
     } else {
-      _beginItem(math.max(0, phase == _Phase.rest ? index : index - 1));
+      _beginItem(
+        phase == _Phase.rest
+            ? screenStart(items, index)
+            : screenStart(items, math.max(0, first - 1)),
+      );
     }
     if (!running) _togglePlay();
   }
@@ -461,9 +491,7 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
   Future<void> _exit() async {
     final wasRunning = running;
     if (wasRunning) _togglePlay();
-    final pctDone =
-        ((index + (phase == _Phase.work ? _progress : 0)) / items.length * 100)
-            .round();
+    final pctDone = (_overall * 100).round();
     final leave = await showEnsoSheet<bool>(
       context,
       dark: true,
@@ -525,23 +553,21 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
     );
   }
 
-  double get _phaseTotal => switch (phase) {
-    _Phase.ready => _readySec,
-    _Phase.rest => gapBefore(items, index + 1, session.restSec).toDouble(),
-    _ => item.s.toDouble(),
-  };
-  double get _progress =>
-      (1 - math.max(0, remaining) / math.max(1, _phaseTotal)).clamp(0.0, 1.0);
+  /// Progress through the practice time (a long hold counts for more than one breath of a flow).
   double get _overall {
     if (phase == _Phase.welcome ||
         phase == _Phase.intro ||
         phase == _Phase.ready) {
       return 0;
     }
-    final part = phase == _Phase.work
-        ? _progress
-        : (phase == _Phase.rest ? 1.0 : 0.0);
-    return ((index + part) / items.length).clamp(0.0, 1.0);
+    var done = 0.0;
+    for (var k = 0; k < index; k++) {
+      done += items[k].s;
+    }
+    if (phase == _Phase.work) done += math.max(0.0, item.s - math.max(0.0, remaining));
+    if (phase == _Phase.rest) done += item.s;
+    final total = items.fold<int>(0, (a, it) => a + it.s);
+    return (done / math.max(1, total)).clamp(0.0, 1.0);
   }
 
   // ------------------------------------------------------------ view
@@ -560,30 +586,38 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
       film = DemoFilm.keyed(
         key: ValueKey('flow-${f.id}'),
         film: f.demo!,
-        poster: current.image,
+        poster: f.poster ?? current.image,
         playing: running,
       );
     } else {
       // The tutor moves into each pose once (entry film) — during the rest before it, in "watch
-      // first", or as the hold begins — then the hold film loops; flow moves play their breath
-      // transition (web player, same rule).
+      // first", or as the hold begins — then the hold film loops. A flow plays its round as one
+      // continuous film (waiting on its first frame during the rest and "your turn"), restarting
+      // with every part's cue (web player, same rule).
       final shownIndex = phase == _Phase.rest && nextEx != null
           ? index + 1
           : index;
       final shownItem = items[shownIndex];
       final shown = phase == _Phase.rest && nextEx != null ? nextEx! : current;
-      final intro = shownItem.f != null
-          ? (phase == _Phase.rest ? null : shownItem.v)
-          : shown.entry;
-      film = DemoFilm(
-        key: ValueKey(
-          '${shown.id}-${shownItem.f != null ? shownIndex : 0}-${intro ?? ''}',
-        ),
-        exercise: shown,
-        intro: intro,
-        introOnly: shownItem.f != null && shownItem.v != null && !shownItem.vl,
-        playing: running,
-      );
+      final shownFlow = Content.i.flow(shownItem.f);
+      final roundPart = roundPartAt(items, shownIndex);
+      if (shownFlow != null && roundPart != null) {
+        film = RoundFilm(
+          key: ValueKey('round-${screenStart(items, shownIndex)}'),
+          films: roundPart.round.films,
+          part: roundPart.part,
+          startKey: '${roundPart.start}:$partRun',
+          playing: running && phase == _Phase.work,
+          poster: shownFlow.poster ?? shown.image,
+        );
+      } else {
+        film = DemoFilm(
+          key: ValueKey('${shown.id}-${shownItem.f != null ? shownIndex : 0}'),
+          exercise: shown,
+          intro: shownItem.f != null ? null : shown.entry,
+          playing: running,
+        );
+      }
     }
     final pill = switch (phase) {
       _Phase.demo => (LucideIcons.eye, tr('player.watchFirst')),
@@ -677,7 +711,10 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
       case _Phase.work:
         if (yourTurn) return tr('player.yourTurn');
         if (f != null) {
-          return '${tr('player.roundOf', {'n': item.r ?? 1, 'total': flowRounds(items, index)})} · ${f.name}';
+          return tr('player.roundOf', {
+            'n': item.r ?? 1,
+            'total': flowRounds(items, index),
+          });
         }
         return item.p;
       case _Phase.rest:
@@ -687,15 +724,30 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
     }
   }
 
-  String get _title {
-    final f = flow;
-    return switch (phase) {
-      _Phase.welcome => plan!.title,
-      _Phase.intro => session.title,
-      _Phase.demo || _Phase.turn => f?.name ?? current.name,
-      _Phase.rest => nextEx?.name ?? current.name,
-      _ => current.name,
-    };
+  /// A flow keeps its own name for all of its rounds; the movement shows underneath.
+  String _nameAt(int i) {
+    if (i < 0 || i >= items.length) return current.name;
+    return Content.i.flow(items[i].f)?.name ??
+        Content.i.exercise(items[i].e)?.name ??
+        current.name;
+  }
+
+  String get _title => switch (phase) {
+    _Phase.welcome => plan!.title,
+    _Phase.intro => session.title,
+    _Phase.rest => index + 1 < items.length ? _nameAt(index + 1) : current.name,
+    _ => _nameAt(index),
+  };
+
+  /// "3 of 10 · Halfway Lift" under a flow's name while it runs.
+  String? get _moveLine {
+    if (phase != _Phase.work || flow == null) return null;
+    final m = moveOfRound(items, index);
+    return tr('player.moveOfRound', {
+      'n': m.n,
+      'total': m.total,
+      'pose': current.name,
+    });
   }
 
   String get _text {
@@ -711,7 +763,11 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
   Widget _centre() {
     if (!_voiceLed) {
       return Text(
-        formatClock(remaining),
+        formatClock(
+          phase == _Phase.work && flow != null
+              ? screenRemaining(items, index, remaining)
+              : remaining,
+        ),
         style: T.displayMd.copyWith(fontSize: 32, color: C.ivory).tab,
       );
     }
@@ -750,8 +806,8 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
       _Phase.ready => tr('player.getReady'),
       _Phase.rest => tr('player.restNextMovement'),
       _ => tr('player.stepOfTotal', {
-        'current': index + 1,
-        'total': items.length,
+        'current': screenIndex(items, index) + 1,
+        'total': screenCount(items),
       }),
     };
     final eyebrow = _eyebrow;
@@ -837,6 +893,19 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
                                   color: C.ivory,
                                 ),
                               ),
+                              if (_moveLine != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  _moveLine!,
+                                  textAlign: TextAlign.center,
+                                  style: T.caption
+                                      .copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: C.sage,
+                                      )
+                                      .tab,
+                                ),
+                              ],
                               // the cue hugs its text so the coaching block stays grouped
                               // and centred under the film (web `justify-center`)
                               Flexible(
@@ -849,20 +918,13 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
                                   ),
                                   child: Align(
                                     heightFactor: 1,
-                                    child: AnimatedSwitcher(
-                                      duration: const Duration(
-                                        milliseconds: 250,
-                                      ),
-                                      child: Text(
-                                        _text,
-                                        key: ValueKey(_text),
-                                        // long spoken paragraphs (a day's intention) get more
-                                        // lines in a slightly smaller size so they are never cut
-                                        maxLines: _voiceLed
-                                            ? (_longCaption ? 6 : 4)
-                                            : 3,
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.center,
+                                    child: PlayerCaption(
+                                        key: ValueKey('$phase:$index:$captionRun:$_text'),
+                                        text: _text,
+                                        running: running,
+                                        // Finish revealing the line even when voice fails and
+                                        // Narration falls back to its minimum reading time.
+                                        readingSeconds: speechSeconds([_text]) * 0.5,
                                         style: T.bodySm.copyWith(
                                           color: C.ivory.withValues(
                                             alpha: _voiceLed ? 0.85 : 0.65,
@@ -870,7 +932,6 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
                                           fontSize: _longCaption ? 14 : null,
                                           height: _longCaption ? 1.45 : 1.5,
                                         ),
-                                      ),
                                     ),
                                   ),
                                 ),

@@ -56,149 +56,291 @@ class BreathCycle extends ChangeNotifier {
   }
 }
 
-class BreathOrb extends StatelessWidget {
+/// Asanova's lotus breath: eight petals open on the in-breath and fold on the
+/// out-breath, a thin ring traces the current phase and a bindu glows at the
+/// centre. [settling] is the narrator's settle-in time before counting starts.
+class BreathOrb extends StatefulWidget {
   const BreathOrb({
     super.key,
-    required this.cycle,
+    required this.phase,
+    required this.left,
+    required this.duration,
     required this.running,
+    this.settling = false,
     this.size = 260,
   });
-  final BreathCycle cycle;
-  final bool running;
-  final double size;
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: cycle,
-      builder: (_, _) {
-        final expanded =
-            cycle.phase == BreathPhase.inhale ||
-            cycle.phase == BreathPhase.hold;
-        final scale = running ? (expanded ? 1.0 : 0.62) : 0.8;
-        return SizedBox(
-          width: size,
-          height: size,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              for (final (i, r) in [1.0, 0.82, 0.64].indexed)
-                _PulseRing(size: size * r, period: 6 + i, running: running),
-              AnimatedScale(
-                scale: scale,
-                duration: Duration(
-                  milliseconds: running
-                      ? math.max(600, cycle.duration * 1000)
-                      : 800,
-                ),
-                curve: Curves.easeInOut,
-                child: Container(
-                  width: size * 0.62,
-                  height: size * 0.62,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const RadialGradient(
-                      center: Alignment(-0.3, -0.4),
-                      colors: [
-                        Color(0xFFBBDBC0),
-                        Color(0xFF558F6E),
-                        Color(0xFF26523E),
-                      ],
-                      stops: [0, 0.55, 1],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF8FC29E).withValues(alpha: 0.6),
-                        blurRadius: 80,
-                        spreadRadius: -10,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    running ? cycle.label : tr('breathOrb.paused'),
-                    style: T.title.c(C.ivory),
-                  ),
-                  if (running)
-                    Text(
-                      '${cycle.left}',
-                      style: T.displayXl
-                          .copyWith(fontSize: 36, color: C.ivory, height: 1)
-                          .tab,
-                    ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
 
-class _PulseRing extends StatefulWidget {
-  const _PulseRing({
-    required this.size,
-    required this.period,
-    required this.running,
-  });
-  final double size;
-  final int period;
-  final bool running;
-  @override
-  State<_PulseRing> createState() => _PulseRingState();
-}
-
-class _PulseRingState extends State<_PulseRing>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: Duration(seconds: widget.period),
+  /// Convenience for screens driven by a [BreathCycle].
+  static Widget cycle({
+    Key? key,
+    required BreathCycle cycle,
+    required bool running,
+    double size = 260,
+  }) => ListenableBuilder(
+    key: key,
+    listenable: cycle,
+    builder: (_, _) => BreathOrb(
+      phase: cycle.phase,
+      left: cycle.left,
+      duration: cycle.duration,
+      running: running,
+      size: size,
+    ),
   );
+
+  final BreathPhase phase;
+  final int left, duration;
+  final bool running, settling;
+  final double size;
+  @override
+  State<BreathOrb> createState() => _BreathOrbState();
+}
+
+class _BreathOrbState extends State<BreathOrb> with TickerProviderStateMixin {
+  late final AnimationController _open = AnimationController(
+    vsync: this,
+    value: 0.35,
+  );
+  late final AnimationController _ring = AnimationController(vsync: this);
+  late final AnimationController _spin = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 90),
+  );
+
+  bool get _counting => widget.running && !widget.settling;
+
   @override
   void initState() {
     super.initState();
-    if (widget.running) _c.repeat(reverse: true);
+    _sync(null);
   }
 
   @override
-  void didUpdateWidget(covariant _PulseRing old) {
+  void didUpdateWidget(covariant BreathOrb old) {
     super.didUpdateWidget(old);
-    if (widget.running && !_c.isAnimating) _c.repeat(reverse: true);
-    if (!widget.running) _c.stop();
+    _sync(old);
+  }
+
+  void _sync(BreathOrb? old) {
+    if (widget.running) {
+      if (!_spin.isAnimating) _spin.repeat();
+    } else {
+      _spin.stop();
+    }
+    if (!widget.running) {
+      _open.animateTo(0.5, duration: const Duration(milliseconds: 900));
+      _ring.stop();
+      return;
+    }
+    if (widget.settling) {
+      if (old == null || !old.settling || !old.running) {
+        _open.duration = const Duration(seconds: 5);
+        _open.repeat(min: 0.3, max: 0.62, reverse: true);
+      }
+      _ring.value = 0;
+      return;
+    }
+    final changed =
+        old == null ||
+        old.phase != widget.phase ||
+        old.settling ||
+        !old.running ||
+        widget.left == widget.duration;
+    if (changed) {
+      final opening =
+          widget.phase == BreathPhase.inhale || widget.phase == BreathPhase.hold;
+      _open.animateTo(
+        opening ? 1 : 0.05,
+        duration: Duration(
+          milliseconds: math.max(600, widget.left * 1000),
+        ),
+        curve: Curves.easeInOutSine,
+      );
+    }
+    final d = math.max(1, widget.duration);
+    final from = (d - widget.left) / d;
+    final to = (d - widget.left + 1) / d;
+    if (_ring.value > to || changed) _ring.value = from;
+    _ring.animateTo(to, duration: const Duration(seconds: 1));
   }
 
   @override
   void dispose() {
-    _c.dispose();
+    _open.dispose();
+    _ring.dispose();
+    _spin.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, _) {
-        final t = Curves.easeInOut.transform(_c.value);
-        return Transform.scale(
-          scale: 1 + 0.04 * t,
-          child: Container(
-            width: widget.size,
-            height: widget.size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: C.ivory.withValues(alpha: 0.15 * (0.5 + 0.4 * t) / 0.7),
+    final s = widget.size;
+    final label = !widget.running
+        ? tr('breathOrb.paused')
+        : (widget.settling ? '' : _phaseLabel(widget.phase));
+    return SizedBox(
+      width: s,
+      height: s,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: Listenable.merge([_open, _ring, _spin]),
+            builder: (_, _) => CustomPaint(
+              size: Size.square(s),
+              painter: _LotusPainter(
+                open: _open.value,
+                ring: _counting ? _ring.value : 0,
+                spin: _spin.value,
+                showRing: _counting,
               ),
             ),
           ),
-        );
-      },
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (label.isNotEmpty)
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: T.title.copyWith(
+                    fontFamily: T.serif,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w500,
+                    color: C.ivory,
+                  ),
+                ),
+              if (_counting)
+                Text(
+                  '${widget.left}',
+                  style: T.displayXl
+                      .copyWith(fontSize: 34, color: C.ivory, height: 1.05)
+                      .tab,
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _LotusPainter extends CustomPainter {
+  _LotusPainter({
+    required this.open,
+    required this.ring,
+    required this.spin,
+    required this.showRing,
+  });
+  final double open, ring, spin;
+  final bool showRing;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2;
+    // Soft aura grows with the breath.
+    canvas.drawCircle(
+      c,
+      r * (0.55 + 0.3 * open),
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            C.terracotta.withValues(alpha: 0.28 * (0.4 + open)),
+            C.sage.withValues(alpha: 0.10),
+            C.sage.withValues(alpha: 0),
+          ],
+          stops: const [0, 0.6, 1],
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+    // Guide track + phase progress.
+    final track = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = C.ivory.withValues(alpha: 0.16);
+    canvas.drawCircle(c, r * 0.94, track);
+    if (showRing && ring > 0) {
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r * 0.94),
+        -math.pi / 2,
+        2 * math.pi * ring,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 3
+          ..color = C.ivory.withValues(alpha: 0.85),
+      );
+      final a = -math.pi / 2 + 2 * math.pi * ring;
+      canvas.drawCircle(
+        c + Offset(math.cos(a), math.sin(a)) * r * 0.94,
+        4.5,
+        Paint()..color = C.ivory,
+      );
+    }
+    // Two petal layers: clay behind, sage in front, slowly turning.
+    void layer(double rot, Color color, double scale, double alpha) {
+      for (var i = 0; i < 8; i++) {
+        final ang = rot + i * math.pi / 4;
+        canvas.save();
+        canvas.translate(c.dx, c.dy);
+        canvas.rotate(ang);
+        final lift = r * (0.08 + 0.30 * open) * scale;
+        final len = r * (0.34 + 0.20 * open) * scale;
+        final w = r * (0.15 + 0.07 * open) * scale;
+        final path = Path()
+          ..moveTo(0, -lift + len * 0.5)
+          ..quadraticBezierTo(w, -lift, 0, -lift - len * 0.5)
+          ..quadraticBezierTo(-w, -lift, 0, -lift + len * 0.5)
+          ..close();
+        canvas.drawPath(
+          path,
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [
+                color.withValues(alpha: alpha * 0.35),
+                color.withValues(alpha: alpha),
+              ],
+            ).createShader(path.getBounds()),
+        );
+        canvas.drawPath(
+          path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.8
+            ..color = C.ivory.withValues(alpha: 0.22),
+        );
+        canvas.restore();
+      }
+    }
+
+    final turn = spin * 2 * math.pi;
+    layer(turn + math.pi / 8, C.terracotta, 1.0, 0.42);
+    layer(-turn * 0.6, C.sage, 0.86, 0.62);
+    // Bindu core keeps the label readable.
+    canvas.drawCircle(
+      c,
+      r * 0.29,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [C.forest2.withValues(alpha: 0.92), C.forest.withValues(alpha: 0.75)],
+        ).createShader(Rect.fromCircle(center: c, radius: r * 0.29)),
+    );
+    canvas.drawCircle(
+      c,
+      r * 0.29,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = C.gold.withValues(alpha: 0.35 + 0.4 * open),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _LotusPainter o) =>
+      o.open != open || o.ring != ring || o.spin != spin || o.showRing != showRing;
 }
 
 /// Soft looping orb for non-breath meditations (web CalmOrb).

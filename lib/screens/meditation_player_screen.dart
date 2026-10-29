@@ -40,38 +40,21 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen> {
   int? sleepAt;
   final spoken = <int>{};
   Timer? _t;
-  BreathCycle? cycle;
 
   int get total => m!.minutes * 60;
 
-  @override
-  void initState() {
-    super.initState();
-    if (m?.breath != null) {
-      cycle = BreathCycle(
-        m!.breath!,
-        onPhase: (p) {
-          Haptics.light();
-          if (app.audio.voice && elapsed < 60) {
-            Voice.say(
-              CoachLines.breath(
-                p == BreathPhase.inhale
-                    ? CoachBreath.inhale
-                    : (p == BreathPhase.exhale
-                          ? CoachBreath.exhale
-                          : CoachBreath.hold),
-              ),
-            );
-          }
-        },
-      );
-    }
-  }
+  late final List<int>? pattern = m?.breath;
+  late final int breathStart = breathStartSec([
+    for (final l in m?.script ?? const <ScriptLine>[]) l.t,
+  ]);
+
+  /// Breath state derived from the meditation clock (null while settling).
+  ({int phase, int left, int duration, int cycle, bool starts})? get breath =>
+      pattern == null ? null : breathAt(pattern!, elapsed - breathStart);
 
   @override
   void dispose() {
     _t?.cancel();
-    cycle?.dispose();
     Voice.stop();
     Ambient.stop();
     WakelockPlus.disable();
@@ -95,7 +78,6 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen> {
 
   void _setRunning(bool v) {
     setState(() => running = v);
-    cycle?.setRunning(v);
     _t?.cancel();
     if (v) {
       WakelockPlus.enable();
@@ -115,9 +97,24 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen> {
           (l) => l.t <= elapsed && !spoken.contains(l.t) && elapsed - l.t < 3,
         )
         .firstOrNull;
-    if (due != null && m!.breath == null) {
+    if (due != null) {
       spoken.add(due.t);
       if (app.audio.voice) Voice.say([due.text]);
+    }
+    final p = pattern;
+    if (p != null && breathCueDue(p, elapsed - breathStart)) {
+      Haptics.light();
+      final b = breath!;
+      // Narration always wins; cues only fill silence in the first rounds.
+      if (app.audio.voice && due == null && !Voice.speaking.value) {
+        Voice.say(
+          CoachLines.breath(
+            b.phase == 0
+                ? CoachBreath.inhale
+                : (b.phase == 2 ? CoachBreath.exhale : CoachBreath.hold),
+          ),
+        );
+      }
     }
     if (sleepAt != null && elapsed >= sleepAt!) {
       sleepAt = null;
@@ -438,8 +435,15 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (cycle != null)
-                          BreathOrb(cycle: cycle!, running: running, size: 270)
+                        if (pattern != null)
+                          BreathOrb(
+                            phase: BreathPhase.values[breath?.phase ?? 0],
+                            left: breath?.left ?? pattern![0],
+                            duration: breath?.duration ?? pattern![0],
+                            running: running,
+                            settling: breath == null,
+                            size: 270,
+                          )
                         else
                           CalmOrb(running: running, size: 270),
                         const SizedBox(height: 24),

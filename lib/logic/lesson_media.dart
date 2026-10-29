@@ -12,6 +12,11 @@ const kMediaBase = 'https://pub-e1f33e62495044f8b81b29fa39490d18.r2.dev/v1';
 const kTutorWelcomeFilm = 'yf-tutor-welcome';
 const kTutorCongratsFilm = 'yf-tutor-congrats';
 
+/// Reviewed eyes-closed frame after the Namaste gesture; narration is independent.
+const kTutorWelcomeStopSeconds = 8.8;
+bool filmPlaybackComplete(String? film, double seconds) =>
+    film == kTutorWelcomeFilm && seconds >= kTutorWelcomeStopSeconds;
+
 String filmPath(String film) => 'video/$film.mp4';
 String voicePath(String key) => 'voice/$key.m4a';
 
@@ -37,6 +42,37 @@ class JourneyOptions {
   final List<int> completedDays;
 }
 
+/// The continuous round film item [it] plays inside (its flow at its pace), or null for a pose hold.
+RoundFilmDef? roundFilmOf(YogaFlow? flow, SessionItem it) {
+  if (flow == null || it.f == null) return null;
+  return it.k > 1 ? flow.roundSlow : flow.round;
+}
+
+/// The part of its round film item [i] plays in (web `roundPartAt`): [part] (0-based), the [film]
+/// key, and [start], the item that began that part (the players restart the film there, so it never
+/// drifts from the breath cues).
+({RoundFilmDef round, int part, String film, int start})? roundPartAt(
+  List<SessionItem> items,
+  int i,
+) {
+  if (i < 0 || i >= items.length) return null;
+  final it = items[i];
+  final round = roundFilmOf(Content.i.flow(it.f), it);
+  if (round == null) return null;
+  final first = roundStart(items, i);
+  final move = i - first;
+  var part = 0;
+  while (part + 1 < round.from.length && round.from[part + 1] <= move) {
+    part++;
+  }
+  return (
+    round: round,
+    part: part,
+    film: round.films[part],
+    start: first + round.from[part],
+  );
+}
+
 /// The affirmation spoken halfway through a single-step hold at item [index].
 String halfwayAffirmation(String sessionId, int index) =>
     Content.i.affirmations[(index * 7 + sessionId.length) %
@@ -45,6 +81,15 @@ String halfwayAffirmation(String sessionId, int index) =>
 /// The demo the player shows before item [i] under [o] (none when demos are off).
 DemoKind? journeyDemoAt(List<SessionItem> items, int i, JourneyOptions o) =>
     o.demos ? demoAt(items, i, o.known) : null;
+
+/// Whether the demo at item [i] says "Watch first" / "Your turn" (only the first two demos of Day 1).
+bool demoCueAt(Session s, int i, JourneyOptions o) {
+  var n = 0;
+  for (var j = 0; j < i; j++) {
+    if (journeyDemoAt(s.items, j, o) != null) n++;
+  }
+  return speaksDemoCue(s.day, n);
+}
 
 /// Every line the guided player can speak during [s], in play order (welcome, day intention,
 /// demos, "your turn", breath cues, steps, rests, finish and the celebration).
@@ -73,15 +118,17 @@ List<String> sessionLines(Session s, JourneyOptions o) {
       final flow = c.flow(it.f);
       final blockStart = i == 0 || items[i - 1].f != it.f;
       if (flow != null && blockStart) {
-        if (demo == DemoKind.flow) out.addAll(CoachLines.flowDemo(flow));
+        if (demo == DemoKind.flow) {
+          out.addAll(CoachLines.flowDemo(flow, demoCueAt(s, i, o)));
+        }
         out.addAll(CoachLines.flowGo(flow));
       }
       out.addAll(CoachLines.flowMove(it, isRoundStart(items, i)));
       continue;
     }
     if (demo == DemoKind.pose) {
-      out.addAll(CoachLines.demo(ex));
-      out.addAll(CoachLines.yourTurn(ex));
+      out.addAll(CoachLines.demo(ex, demoCueAt(s, i, o)));
+      out.addAll(CoachLines.yourTurn(ex, demoCueAt(s, i, o)));
     } else {
       out.addAll(CoachLines.start(ex));
     }
@@ -132,12 +179,20 @@ List<String> sessionMediaPaths(Session s, JourneyOptions o, Set<String> clips) {
     }
     final ex = c.exercise(it.e);
     if (ex == null || ex.video != null) continue;
-    // play order: the move's transition or the pose's entry film, then its looping hold film
+    // a flow round plays its continuous film (one or a few parts); without one, the move's pose film
     if (it.f != null) {
-      if (it.v != null) add(filmPath(it.v!));
-    } else if (ex.entry != null) {
-      add(filmPath(ex.entry!));
+      final round = roundFilmOf(c.flow(it.f), it);
+      if (round != null) {
+        for (final f in round.films) {
+          add(filmPath(f));
+        }
+      } else if (ex.demo != null) {
+        add(filmPath(ex.demo!));
+      }
+      continue;
     }
+    // play order: the pose's entry film, then its looping hold film
+    if (ex.entry != null) add(filmPath(ex.entry!));
     if (ex.demo != null) add(filmPath(ex.demo!));
   }
   add(filmPath(kTutorCongratsFilm));

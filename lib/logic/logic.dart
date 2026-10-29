@@ -326,7 +326,13 @@ int? freeStarterDay(int totalDays, List<int> completed) {
 }
 
 /// Today leads with a free session (personal plan moves below) whenever the personal plan's next day is locked.
-bool homeLeadsWithFree(bool planLocked) => planLocked;
+/// Unless the person already practises that course: then it stays the headline (its locked next day
+/// is the Plus invitation) instead of swapping in a different session.
+bool homeLeadsWithFree(bool planLocked, [bool planStarted = false]) =>
+    planLocked && !planStarted;
+
+/// "Watch first" / "Your turn" are spoken only for the first two demos of a course's Day 1.
+bool speaksDemoCue(int? day, int demoOrdinal) => day == 1 && demoOrdinal < 2;
 
 // ------------------------------------------------------------ body
 
@@ -566,6 +572,93 @@ int flowRounds(List<SessionItem> items, int i) {
     max = math.max(max, items[k].r ?? 1);
   }
   return max;
+}
+
+// ------------------------------------------------------------ screens: a whole flow is one step
+
+/// First item of the screen item [i] is on: every pose hold is its own screen, a whole run of one
+/// flow is one (web `screenStart`).
+int screenStart(List<SessionItem> items, int i) {
+  if (i < 0 || i >= items.length) return i;
+  final f = items[i].f;
+  if (f == null) return i;
+  var k = i;
+  while (k > 0 && items[k - 1].f == f) {
+    k--;
+  }
+  return k;
+}
+
+/// One past the last item of the screen item [i] is on.
+int screenEnd(List<SessionItem> items, int i) {
+  if (i < 0 || i >= items.length) return i + 1;
+  final f = items[i].f;
+  if (f == null) return i + 1;
+  var k = i + 1;
+  while (k < items.length && items[k].f == f) {
+    k++;
+  }
+  return k;
+}
+
+/// Screens of a lesson ("Step x of y"): pose holds plus one per flow block.
+int screenCount(List<SessionItem> items) {
+  var n = 0;
+  for (var i = 0; i < items.length; i = screenEnd(items, i)) {
+    n++;
+  }
+  return n;
+}
+
+/// 0-based screen of item [i].
+int screenIndex(List<SessionItem> items, int i) {
+  var n = 0;
+  final start = screenStart(items, i);
+  for (var k = 0; k < items.length && screenEnd(items, k) <= start; k = screenEnd(items, k)) {
+    n++;
+  }
+  return n;
+}
+
+/// Seconds left on item [i]'s screen while [remaining] seconds are left on item [i] itself.
+double screenRemaining(List<SessionItem> items, int i, double remaining) {
+  var s = math.max(0.0, remaining);
+  for (var k = i + 1; k < screenEnd(items, i); k++) {
+    s += items[k].s;
+  }
+  return s;
+}
+
+/// Seconds of the whole screen item [i] is on.
+int screenSeconds(List<SessionItem> items, int i) {
+  var s = 0;
+  for (var k = screenStart(items, i); k < screenEnd(items, i); k++) {
+    s += items[k].s;
+  }
+  return s;
+}
+
+/// First item of the round of the flow that item [i] belongs to (item [i] itself for a pose hold).
+int roundStart(List<SessionItem> items, int i) {
+  if (i < 0 || i >= items.length || items[i].f == null) return i;
+  final it = items[i];
+  var k = i;
+  while (k > 0 && items[k - 1].f == it.f && items[k - 1].r == it.r) {
+    k--;
+  }
+  return k;
+}
+
+/// Movement [i] within its round, 1-based, and the movements in that round ("3 of 10").
+({int n, int total}) moveOfRound(List<SessionItem> items, int i) {
+  if (i < 0 || i >= items.length || items[i].f == null) return (n: 1, total: 1);
+  final it = items[i];
+  final start = roundStart(items, i);
+  var end = i + 1;
+  while (end < items.length && items[end].f == it.f && items[end].r == it.r) {
+    end++;
+  }
+  return (n: i - start + 1, total: end - start);
 }
 
 /// The tutor welcomes a person to a course before Day 1 until they have finished a day of it.
@@ -925,3 +1018,46 @@ String? paywallSurveyOffer(String? reason, {bool trialAvailable = true}) =>
       'later' || 'unsure' => trialAvailable ? 'regular' : 'exit',
       _ => null,
     };
+
+// ---------------------------------------------------------------------------
+// Breath meditations: the narrator settles the person first, then the circle
+// starts; the breath phase is derived from the meditation clock so seeking,
+// pausing and narration can never drift apart (web `breathStartSec`/`breathAt`).
+
+/// Second the guided breath cycle begins: after the settle + instruction lines.
+int breathStartSec(List<int> scriptTimes) =>
+    scriptTimes.length >= 3 ? scriptTimes[2] : 0;
+
+/// Phase (0 inhale, 1 hold, 2 exhale, 3 rest) at [sec] seconds since the
+/// cycle began, whole seconds left, phase length, cycle count and whether the
+/// phase starts exactly on this second. Null before the cycle starts.
+({int phase, int left, int duration, int cycle, bool starts})? breathAt(
+  List<int> pattern,
+  int sec,
+) {
+  final len = pattern.fold<int>(0, (a, b) => a + b);
+  if (sec < 0 || len <= 0) return null;
+  final cycle = sec ~/ len;
+  final o = sec % len;
+  var start = 0;
+  for (var i = 0; i < 4; i++) {
+    final d = pattern[i];
+    if (d > 0 && o < start + d) {
+      return (
+        phase: i,
+        left: d - (o - start),
+        duration: d,
+        cycle: cycle,
+        starts: o == start,
+      );
+    }
+    start += d;
+  }
+  return null;
+}
+
+/// Spoken "breathe in / out" cues only teach the first two rounds.
+bool breathCueDue(List<int> pattern, int sec) {
+  final b = breathAt(pattern, sec);
+  return b != null && b.starts && b.cycle < 2;
+}

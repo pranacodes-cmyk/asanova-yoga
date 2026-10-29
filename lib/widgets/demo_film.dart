@@ -59,7 +59,9 @@ class DemoFilm extends StatefulWidget {
   State<DemoFilm> createState() => _DemoFilmState();
 }
 
-VideoPlayerController _ourFilm(String film, VideoPlayerOptions options) {
+/// Controller for one of our films: from the phone when downloaded, else the app bundle, else the
+/// media server.
+VideoPlayerController ourFilmController(String film, VideoPlayerOptions options) {
   final src = MediaStore.source(filmPath(film));
   return switch (src.origin) {
     MediaOrigin.file => VideoPlayerController.file(
@@ -80,6 +82,7 @@ VideoPlayerController _ourFilm(String film, VideoPlayerOptions options) {
 class _DemoFilmState extends State<DemoFilm> {
   VideoPlayerController? _c, _intro;
   bool _ready = false, _introReady = false, _introDone = true;
+  bool _held = false;
 
   bool get _loopActive => _introDone && !widget.introOnly;
 
@@ -88,7 +91,7 @@ class _DemoFilmState extends State<DemoFilm> {
     super.initState();
     final options = VideoPlayerOptions(mixWithOthers: true);
     if (widget.intro != null) {
-      final i = _ourFilm(widget.intro!, options);
+      final i = ourFilmController(widget.intro!, options);
       _intro = i;
       _introDone = false;
       i.setLooping(false);
@@ -111,13 +114,14 @@ class _DemoFilmState extends State<DemoFilm> {
         videoPlayerOptions: options,
       );
     } else if (widget.film != null) {
-      c = _ourFilm(widget.film!, options);
+      c = ourFilmController(widget.film!, options);
     } else {
       return;
     }
     _c = c;
-    c.setLooping(widget.loop);
+    c.setLooping(widget.loop && widget.film != kTutorWelcomeFilm);
     c.setVolume(0);
+    c.addListener(_holdWelcome);
     c
         .initialize()
         .then((_) {
@@ -128,6 +132,18 @@ class _DemoFilmState extends State<DemoFilm> {
         .catchError((Object _) {
           // photo stays visible
         });
+  }
+
+  void _holdWelcome() {
+    final c = _c;
+    if (c == null || _held || !c.value.isInitialized) return;
+    if (!filmPlaybackComplete(
+      widget.film,
+      c.value.position.inMicroseconds / Duration.microsecondsPerSecond,
+    )) return;
+    _held = true;
+    c.pause();
+    c.seekTo(const Duration(milliseconds: 8800));
   }
 
   void _onIntro() {
@@ -154,13 +170,14 @@ class _DemoFilmState extends State<DemoFilm> {
     }
     final c = _c;
     if (c == null || !_ready) return;
-    widget.playing && _loopActive ? c.play() : c.pause();
+    widget.playing && _loopActive && !_held ? c.play() : c.pause();
   }
 
   @override
   void dispose() {
     _intro?.removeListener(_onIntro);
     _intro?.dispose();
+    _c?.removeListener(_holdWelcome);
     _c?.dispose();
     super.dispose();
   }

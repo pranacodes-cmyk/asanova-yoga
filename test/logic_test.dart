@@ -1,6 +1,7 @@
 // Mirrors src/lib/logic.test.ts — the same rules must hold on Android and web.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:enso/data/content.dart';
 import 'package:enso/data/models.dart';
@@ -395,6 +396,23 @@ void main() {
         expect(m.script.map((l) => l.text).toSet().length, m.script.length);
       }
     });
+    test('every meditation has its own script, with only the safety and eyes-open lines shared', () {
+      final meds = Content.i.meditations;
+      final scripts = meds.map((m) => m.script.map((l) => l.text.toLowerCase()).join('|')).toSet();
+      expect(scripts.length, meds.length);
+      final owners = <String, Set<String>>{};
+      for (final m in meds) {
+        for (final l in m.script) {
+          owners.putIfAbsent(l.text.trim().toLowerCase(), () => <String>{}).add(m.id);
+        }
+      }
+      final shared = owners.entries.where((e) => e.value.length > 1).map((e) => e.key).toList()..sort();
+      expect(shared, [
+        'gently open your eyes.',
+        'if you feel light-headed or uneasy at any point, let the technique go and simply breathe naturally.',
+        'open your eyes when you are ready.',
+      ]);
+    });
     test('the player route cannot bypass a locked premium day', () {
       expect(isSessionLocked('plan:yoga-foundations-21:1', false), true);
       expect(isSessionLocked('plan:yoga-foundations-21:4', false), true);
@@ -606,6 +624,25 @@ void main() {
       expect(paths, contains('video/yf-tutor-congrats.mp4'));
       expect(paths.toSet().length, paths.length);
     });
+    test('a flow day downloads its continuous round films, never the old per-breath clips', () {
+      final day = Content.i
+          .plan('yoga-journey-30')!
+          .days
+          .firstWhere((d) => d.items.any((it) => it.f != null && it.k == 1));
+      final s = resolveSession('plan:yoga-journey-30:${day.day}')!;
+      final paths = sessionMediaPaths(
+        s,
+        const JourneyOptions(known: {}, demos: true, welcome: false),
+        Content.i.voice,
+      );
+      final flow = Content.i.flow(
+        s.items.firstWhere((it) => it.f != null && it.k == 1).f,
+      )!;
+      for (final f in flow.round!.films) {
+        expect(paths, contains('video/$f.mp4'));
+      }
+      expect(paths.where((p) => p.startsWith('video/yt-')), isEmpty);
+    });
     test(
       'later days skip the welcome film and only fetch clips that exist',
       () {
@@ -796,6 +833,16 @@ void main() {
     test('leads with free only when the personal plan is locked', () {
       expect(homeLeadsWithFree(true), true);
       expect(homeLeadsWithFree(false), false);
+    });
+    test("keeps a started course as Today's headline even when its next day is locked", () {
+      expect(homeLeadsWithFree(true, true), false);
+    });
+    test('says Watch first / Your turn only for the first two demos of Day 1', () {
+      expect(speaksDemoCue(1, 0), true);
+      expect(speaksDemoCue(1, 1), true);
+      expect(speaksDemoCue(1, 2), false);
+      expect(speaksDemoCue(2, 0), false);
+      expect(speaksDemoCue(null, 0), false);
     });
   });
 
@@ -1054,6 +1101,93 @@ void main() {
       expect(flowRounds(items, 1), 2);
     });
 
+    // a flow used to be one screen per breath (Day 2 showed 22 steps); now all of its rounds are one
+    test('shows a whole flow as one step, with its own clock and movement count', () {
+      final items = [
+        it3('cat-cow', 40),
+        it3('upward-salute', 5, 'half-sun', 1),
+        it3('soft-fold', 5, 'half-sun', 1),
+        it3('halfway-lift', 5, 'half-sun', 1),
+        it3('upward-salute', 5, 'half-sun', 2),
+        it3('soft-fold', 5, 'half-sun', 2),
+        it3('halfway-lift', 5, 'half-sun', 2),
+        it3('child-pose', 30),
+      ];
+      expect(screenCount(items), 3);
+      expect(
+        [for (var i = 0; i < items.length; i++) screenIndex(items, i)],
+        [0, 1, 1, 1, 1, 1, 1, 2],
+      );
+      expect([screenStart(items, 4), screenEnd(items, 4)], [1, 7]);
+      expect([screenStart(items, 7), screenEnd(items, 7)], [7, 8]);
+      expect(screenSeconds(items, 3), 30);
+      expect(screenRemaining(items, 2, 3), 3 + 5 * 4);
+      expect(screenRemaining(items, 0, 12), 12);
+      expect(roundStart(items, 5), 4);
+      expect(moveOfRound(items, 5), (n: 2, total: 3));
+      expect(moveOfRound(items, 0), (n: 1, total: 1));
+    });
+
+    test('plays every taught flow round as one continuous film at its pace', () {
+      final sessions = [
+        for (final p in Content.i.plans) ...p.days.map((d) => d.items),
+        for (final q in Content.i.quickSessions) q.items,
+      ];
+      var checked = 0;
+      for (final items in sessions) {
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].f == null) continue;
+          final part = roundPartAt(items, i);
+          expect(part, isNotNull, reason: '${items[i].f} pace ${items[i].k}');
+          expect(
+            File('../src/assets/video/${part!.film}.mp4').existsSync(),
+            isTrue,
+            reason: part.film,
+          );
+          expect(part.start, greaterThanOrEqualTo(roundStart(items, i)));
+          expect(part.start, lessThanOrEqualTo(i));
+          checked++;
+        }
+      }
+      expect(checked, greaterThan(100));
+      for (final f in Content.i.flows) {
+        for (final r in [f.round, f.roundSlow].whereType<RoundFilmDef>()) {
+          expect(r.from.first, 0, reason: f.id);
+          expect(r.from.length, r.films.length, reason: f.id);
+          expect([...r.from]..sort(), r.from, reason: f.id);
+          expect(r.from.reduce(math.max), lessThan(f.moves.length));
+        }
+        expect(f.poster, isNotNull, reason: f.id);
+      }
+    });
+
+    test('switches round film parts exactly at the movement they were cut at', () {
+      final flow = Content.i.flow('sun-a')!;
+      final sunA = flow.round!;
+      expect(sunA.films.length, 2);
+      final cut = sunA.from[1];
+      final n = flow.moves.length;
+      final items = [
+        it3('child-pose', 30),
+        for (final e in flow.moves) it3(e, 5, 'sun-a', 1),
+        for (final e in flow.moves) it3(e, 5, 'sun-a', 2),
+      ];
+      expect(roundPartAt(items, 0), isNull);
+      expect(roundPartAt(items, 1)!.film, sunA.films[0]);
+      expect(roundPartAt(items, 1)!.start, 1);
+      expect(roundPartAt(items, cut)!.part, 0);
+      expect(roundPartAt(items, 1 + cut)!.part, 1);
+      expect(roundPartAt(items, 1 + cut)!.film, sunA.films[1]);
+      expect(roundPartAt(items, 1 + cut)!.start, 1 + cut);
+      expect(roundPartAt(items, 1 + n)!.part, 0);
+      expect(roundPartAt(items, 1 + n)!.start, 1 + n);
+      final slow = [
+        for (final it in items)
+          it.f == null ? it : SessionItem(it.e, it.s, it.p, it.f, it.r, it.c, 2),
+      ];
+      expect(roundPartAt(slow, 1)!.film, flow.roundSlow!.films[0]);
+    });
+
     test('counts poses and flows from finished workouts as practised', () {
       HistoryEntry h(String kind) => HistoryEntry(
         id: kind,
@@ -1137,6 +1271,26 @@ void main() {
         speechSeconds(['', 'One two three four five six seven eight nine ten']),
         4.4,
       );
+    });
+  });
+
+  group('breath meditations follow the narrator', () {
+    test('waits for the settle and instruction lines before counting', () {
+      expect(breathStartSec([2, 13, 35, 68]), 35);
+      expect(breathAt([4, 4, 4, 4], 33 - 35), isNull);
+    });
+    test('derives the phase from the clock', () {
+      final a = breathAt([4, 7, 8, 0], 0)!;
+      expect([a.phase, a.left, a.duration, a.cycle, a.starts], [0, 4, 4, 0, true]);
+      final b = breathAt([4, 7, 8, 0], 5)!;
+      expect([b.phase, b.left, b.duration, b.cycle, b.starts], [1, 6, 7, 0, false]);
+      final c = breathAt([4, 0, 6, 0], 10)!;
+      expect([c.phase, c.left, c.duration, c.cycle, c.starts], [0, 4, 4, 1, true]);
+    });
+    test('speaks cues only on phase starts of the first two rounds', () {
+      expect(breathCueDue([4, 0, 6, 0], 4), isTrue);
+      expect(breathCueDue([4, 0, 6, 0], 5), isFalse);
+      expect(breathCueDue([4, 0, 6, 0], 20), isFalse);
     });
   });
 }

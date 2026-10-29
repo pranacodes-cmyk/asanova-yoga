@@ -84,7 +84,7 @@ class HomeScreen extends StatelessWidget {
     );
     final dailyLocked = isDayLocked(daily, dailyDay, premium);
 
-    final leadFree = homeLeadsWithFree(heroLocked);
+    final leadFree = homeLeadsWithFree(heroLocked, completed.isNotEmpty);
     final freeQ = c.quickSessions.firstWhere(
       (q) => q.id == freePickQuickId(now.hour),
       orElse: () => c.quickSessions.first,

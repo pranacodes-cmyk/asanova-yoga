@@ -208,7 +208,7 @@ class _BreatheScreenState extends State<BreatheScreen> {
                           ? orbSize + 20
                           : math.max(orbSize + 36, constraints.maxHeight - 374),
                       child: Center(
-                        child: BreathOrb(
+                        child: BreathOrb.cycle(
                           cycle: cycle,
                           running: running,
                           size: orbSize,

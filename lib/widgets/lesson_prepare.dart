@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 import '../i18n/i18n.dart';
+import '../data/content.dart';
 import '../logic/coach.dart';
 import '../logic/lesson_media.dart';
 import '../services/audio_service.dart';
@@ -34,6 +35,7 @@ class _LessonPrepareState extends State<LessonPrepare> {
   late final AppState app = context.read<AppState>();
   int _done = 0;
   bool _failed = false, _cancelled = false;
+  int _total = 0;
   BreathCycle? _cycle;
 
   bool get _ready => _missing.isEmpty;
@@ -59,13 +61,23 @@ class _LessonPrepareState extends State<LessonPrepare> {
         Voice.say(CoachLines.breath(CoachBreath.inhale));
       }
     });
+    _syncMusic();
     _run();
+  }
+
+  void _syncMusic() {
+    if (app.audio.music) {
+      Ambient.play(app.audio.musicTrack, app.audio.musicVolume * 0.6);
+    } else {
+      Ambient.pause();
+    }
   }
 
   Future<void> _run() async {
     setState(() {
       _failed = false;
       _done = 0;
+      _total = _missing.length;
     });
     _cycle?.setRunning(true);
     try {
@@ -95,6 +107,7 @@ class _LessonPrepareState extends State<LessonPrepare> {
   void _close() {
     _cancelled = true;
     Voice.stop();
+    Ambient.stop();
     context.canPop() ? context.pop() : context.go('/');
   }
 
@@ -102,99 +115,86 @@ class _LessonPrepareState extends State<LessonPrepare> {
   void dispose() {
     _cancelled = true;
     _cycle?.dispose();
+    if (!_ready) {
+      Voice.stop();
+      Ambient.stop();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_ready) return widget.child;
-    final pct = downloadPercent(_done, _missing.length);
+    final pct = downloadPercent(_done, _total);
     final cycle = _cycle;
     return EnsoScaffold(
-      background: C.cream,
-      body: LayoutBuilder(
-        builder: (context, box) => SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: box.maxHeight),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                24,
-                topInset(context) + 8,
-                24,
-                bottomInset(context) + 20,
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      CircleBtn(
-                        icon: LucideIcons.x,
-                        label: tr('prepare.cancel'),
-                        onTap: _close,
-                      ),
-                      const Spacer(),
-                    ],
-                  ),
-                  SizedBox(height: math.max(16, box.maxHeight * 0.04)),
-                  Text(
-                    tr(_failed ? 'prepare.failedTitle' : 'prepare.title'),
-                    textAlign: TextAlign.center,
-                    style: T.displayMd,
-                  ),
-                  const SizedBox(height: 10),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 320),
-                    child: Text(
-                      tr(_failed ? 'prepare.failedBody' : 'prepare.subtitle'),
-                      textAlign: TextAlign.center,
-                      style: T.bodySm.c(C.muted),
-                    ),
-                  ),
-                  SizedBox(height: math.max(20, box.maxHeight * 0.05)),
-                  if (_failed)
-                    SizedBox(
-                      height: math.min(200, box.maxHeight * 0.3),
-                      child: const Center(
-                        child: Icon(
-                          LucideIcons.wifiOff,
-                          size: 44,
-                          color: C.jade,
-                        ),
-                      ),
-                    )
-                  else if (cycle != null)
-                    BreathOrb(
-                      cycle: cycle,
-                      running: true,
-                      size: math.min(240, box.maxHeight * 0.34),
-                    ),
-                  SizedBox(height: math.max(24, box.maxHeight * 0.05)),
-                  if (_failed)
-                    EnsoButton(
-                      label: tr('prepare.retry'),
-                      icon: LucideIcons.rotateCw,
-                      onTap: _run,
-                    )
-                  else ...[
-                    Bar(value: pct / 100, height: 6),
-                    const SizedBox(height: 10),
-                    Text(
-                      tr('prepare.progress', {'pct': pct}),
-                      style: T.label.c(C.ink).tab,
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  EnsoButton(
-                    label: tr('prepare.cancel'),
-                    variant: BtnVariant.ghost,
-                    onTap: _close,
-                  ),
-                ],
-              ),
+      background: C.forest,
+      lightIcons: true,
+      body: LayoutBuilder(builder: (context, box) {
+        final compact = box.maxHeight < 660;
+        return SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: box.maxHeight),
+          child: Column(children: [
+            SizedBox(
+              height: math.min(390.0, box.maxHeight * (compact ? 0.40 : 0.46)),
+              child: Stack(fit: StackFit.expand, children: [
+                EImage(img('tutor-seat')),
+                DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                  colors: [C.forest.withValues(alpha: 0.12), C.forest.withValues(alpha: 0.05), C.forest],
+                  stops: const [0, 0.55, 1],
+                ))),
+                Positioned(top: topInset(context) + 8, left: 16, right: 16,
+                  child: Row(children: [
+                    CircleBtn(icon: LucideIcons.x, tone: Tone.dark,
+                      label: tr('prepare.cancel'), onTap: _close),
+                    const Spacer(),
+                    Text(tr('welcome.brandName'), style: T.label.c(C.ivory)),
+                    const Spacer(),
+                    CircleBtn(icon: app.audio.music ? LucideIcons.music2 : LucideIcons.volumeX,
+                      tone: Tone.dark, label: tr(app.audio.music ? 'player.musicOn' : 'player.musicOff'),
+                      onTap: () {
+                        app.setAudio((a) => a.music = !a.music);
+                        _syncMusic();
+                        setState(() {});
+                      }),
+                  ])),
+              ]),
             ),
-          ),
+            Padding(padding: EdgeInsets.fromLTRB(28, 8, 28, bottomInset(context) + (compact ? 16 : 24)),
+              child: Column(children: [
+                Text(tr(_failed ? 'prepare.failedTitle' : 'prepare.title'),
+                  textAlign: TextAlign.center, style: T.displayMd.c(C.ivory)),
+                const SizedBox(height: 12),
+                Text(tr(_failed ? 'prepare.failedBody' : 'prepare.subtitle'),
+                  textAlign: TextAlign.center, style: T.bodySm.c(C.ivory.withValues(alpha: 0.65))),
+                SizedBox(height: compact ? 16 : 24),
+                SizedBox(width: compact ? 92 : 112, height: compact ? 92 : 112, child: Stack(alignment: Alignment.center, children: [
+                  SizedBox.expand(child: CircularProgressIndicator(
+                    value: _failed ? 0 : pct / 100, strokeWidth: 2,
+                    backgroundColor: C.ivory.withValues(alpha: 0.12), color: C.sage)),
+                  if (_failed) const Icon(LucideIcons.wifiOff, color: C.sage, size: 32)
+                  else Text(tr('prepare.progress', {'pct': pct}),
+                    style: T.displayMd.copyWith(fontSize: 30, color: C.ivory).tab),
+                ])),
+                SizedBox(height: compact ? 12 : 18),
+                if (!_failed && cycle != null) ListenableBuilder(listenable: cycle,
+                  builder: (_, _) => Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(cycle.label, style: T.serifAccent.copyWith(fontSize: 22, color: C.sage)),
+                    const SizedBox(width: 12),
+                    Text('${cycle.left}', style: T.label.c(C.ivory.withValues(alpha: 0.65)).tab),
+                  ])),
+                if (_failed) EnsoButton(label: tr('prepare.retry'), icon: LucideIcons.rotateCw,
+                  variant: BtnVariant.ivory, onTap: _run),
+                SizedBox(height: compact ? 16 : 24),
+                LinearProgressIndicator(value: pct / 100, minHeight: 2,
+                  backgroundColor: C.ivory.withValues(alpha: 0.12), color: C.sage),
+              ])),
+          ]),
         ),
-      ),
+        );
+      }),
     );
   }
 }
