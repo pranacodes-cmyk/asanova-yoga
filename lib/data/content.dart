@@ -4,6 +4,7 @@ import 'package:flutter/painting.dart' show Alignment;
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../i18n/i18n.dart';
+import '../services/content_updates.dart';
 import 'models.dart';
 
 /// The shared content in the app language: `content.json` (English) or `i18n/content.<lang>.json`,
@@ -101,7 +102,8 @@ class Content {
       : 'assets/data/i18n/content.$lang.json';
 
   static Future<void> load([String lang = 'en']) async {
-    final raw = await rootBundle.loadString(assetFor(lang));
+    // A newer over-the-air update (ContentUpdates) wins over the bundled file when present.
+    final raw = await ContentUpdates.cached(lang) ?? await rootBundle.loadString(assetFor(lang));
     i = Content._(jsonDecode(raw) as Map<String, dynamic>, lang);
     loaded = true;
   }

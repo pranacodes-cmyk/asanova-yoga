@@ -1061,3 +1061,40 @@ bool breathCueDue(List<int> pattern, int sec) {
   final b = breathAt(pattern, sec);
   return b != null && b.starts && b.cycle < 2;
 }
+
+// ------------------------------------------------------------ over-the-air content
+
+/// Content format both clients understand; a server update with another schema is ignored.
+const int kContentSchema = 1;
+
+typedef OtaFile = ({String hash, int bytes});
+typedef OtaCached = ({int schema, int seq, String hash});
+
+String? _otaHash(Object? f) => f is String ? f : (f is Map ? f['hash'] as String? : null);
+
+/// The content file to download for [lang], or null when the app already has the newest.
+/// [base] is the bundled `ota-base.json`, [remote] the server's `content/ota.json`.
+OtaFile? otaPick(Map<String, dynamic> base, Map<String, dynamic>? remote, String lang, OtaCached? cached) {
+  if (remote == null || remote['schema'] != kContentSchema) return null;
+  final seq = (remote['seq'] as num?)?.toInt() ?? 0;
+  if (seq <= ((base['seq'] as num?)?.toInt() ?? 0)) return null;
+  final f = (remote['files'] as Map?)?[lang];
+  if (f is! Map) return null;
+  final hash = f['hash'] as String?;
+  final bytes = (f['bytes'] as num?)?.toInt() ?? 0;
+  if (hash == null || hash.isEmpty || bytes <= 0) return null;
+  if (hash == _otaHash((base['files'] as Map?)?[lang])) return null;
+  if (cached != null && cached.hash == hash && cached.seq >= seq) return null;
+  return (hash: hash, bytes: bytes);
+}
+
+/// Use the downloaded content instead of the bundled one only when it is newer and readable.
+bool otaUseCached(Map<String, dynamic> base, OtaCached? cached) =>
+    cached != null && cached.schema == kContentSchema && cached.seq > ((base['seq'] as num?)?.toInt() ?? 0);
+
+/// A downloaded content file is only kept when it is complete and has the shape the app reads.
+bool otaValid(Object? json) {
+  if (json is! Map) return false;
+  bool list(String k) => json[k] is List && (json[k] as List).isNotEmpty;
+  return list('exercises') && list('plans') && list('meditations') && json['ui'] is Map;
+}

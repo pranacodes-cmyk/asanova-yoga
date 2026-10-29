@@ -14,6 +14,7 @@ import 'router.dart';
 import 'services/audio_service.dart';
 import 'services/notification_service.dart';
 import 'services/purchase_service.dart';
+import 'services/content_updates.dart';
 import 'services/media_store.dart';
 import 'state/app_state.dart';
 import 'theme/text.dart';
@@ -45,6 +46,8 @@ Future<void> main() async {
     ),
   );
   _bootstrapReminders(app);
+  // A newer lesson update (if any) downloads quietly and is used from the next launch.
+  unawaited(ContentUpdates.check(Content.i.lang));
 }
 
 Future<void> _bootstrapReminders(AppState app) async {
