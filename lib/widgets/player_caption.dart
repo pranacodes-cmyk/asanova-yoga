@@ -33,8 +33,12 @@ class _PlayerCaptionState extends State<PlayerCaption> {
   void initState() {
     super.initState();
     _timer = Timer.periodic(const Duration(milliseconds: 80), (_) {
-      if (!widget.running || _manual || !_scroll.hasClients ||
-          MediaQuery.disableAnimationsOf(context)) return;
+      if (!widget.running ||
+          _manual ||
+          !_scroll.hasClients ||
+          MediaQuery.disableAnimationsOf(context)) {
+        return;
+      }
       final position = _scroll.position;
       if (position.maxScrollExtent <= 0) return;
       _elapsed += 0.08;

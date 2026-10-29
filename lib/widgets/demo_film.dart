@@ -137,10 +137,9 @@ class _DemoFilmState extends State<DemoFilm> {
   void _holdWelcome() {
     final c = _c;
     if (c == null || _held || !c.value.isInitialized) return;
-    if (!filmPlaybackComplete(
-      widget.film,
-      c.value.position.inMicroseconds / Duration.microsecondsPerSecond,
-    )) return;
+    final seconds =
+        c.value.position.inMicroseconds / Duration.microsecondsPerSecond;
+    if (!filmPlaybackComplete(widget.film, seconds)) return;
     _held = true;
     c.pause();
     c.seekTo(const Duration(milliseconds: 8800));
