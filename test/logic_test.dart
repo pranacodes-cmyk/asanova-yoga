@@ -1133,6 +1133,10 @@ void main() {
         for (final p in Content.i.plans) ...p.days.map((d) => d.items),
         for (final q in Content.i.quickSessions) q.items,
       ];
+      // the phone downloads round films from the media server (test/remote-media.json)
+      final uploaded = jsonDecode(
+        File('test/remote-media.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
       var checked = 0;
       for (final items in sessions) {
         for (var i = 0; i < items.length; i++) {
@@ -1140,7 +1144,7 @@ void main() {
           final part = roundPartAt(items, i);
           expect(part, isNotNull, reason: '${items[i].f} pace ${items[i].k}');
           expect(
-            File('../src/assets/video/${part!.film}.mp4').existsSync(),
+            uploaded.containsKey(filmPath(part!.film)),
             isTrue,
             reason: part.film,
           );
