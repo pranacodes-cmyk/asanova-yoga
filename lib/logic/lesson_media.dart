@@ -5,8 +5,26 @@ import 'logic.dart';
 
 /// Lesson media served from the Asanova media server (Cloudflare R2) and kept on the phone
 /// after the first download (web `src/lib/lesson-media.ts`, kept 1:1).
-/// Paths are relative to the versioned media root: `video/<film>.mp4`, `voice/<key>.m4a`.
-const kMediaBase = 'https://pub-e1f33e62495044f8b81b29fa39490d18.r2.dev/v1';
+/// Lesson paths are logical: `video/<film>.mp4`, `voice/<key>.m4a`; [mediaKey] says where each
+/// one lives on the server and on the phone.
+const kMediaRoot = 'https://pub-e1f33e62495044f8b81b29fa39490d18.r2.dev';
+
+/// Films and over-the-air content.
+const kMediaBase = '$kMediaRoot/v1';
+
+/// The narration release this build plays. Every voice re-recording gets its own folder, so a
+/// phone never keeps playing a clip saved from an older release (older builds keep `v1/voice`).
+const kVoiceRelease = 'voice-aac-lc-64-v2';
+
+/// The legacy narration folder phones saved before [kVoiceRelease]; cleared on start.
+const kLegacyVoiceKey = 'v1/voice';
+
+/// Where a logical lesson path is stored on the media server and in the phone's media folder.
+String mediaKey(String path) =>
+    path.startsWith('voice/') ? '$kVoiceRelease/$path' : 'v1/$path';
+
+/// The media server address of a logical lesson path.
+String mediaUrl(String path) => '$kMediaRoot/${mediaKey(path)}';
 
 /// The tutor's course welcome and end-of-practice celebration films.
 const kTutorWelcomeFilm = 'yf-tutor-welcome';

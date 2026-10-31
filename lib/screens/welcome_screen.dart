@@ -128,7 +128,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ),
           ),
           Padding(
-            padding: EdgeInsets.fromLTRB(28, top + 22, 28, bottom + 26),
+            padding: EdgeInsets.fromLTRB(28, top + 22, 28, bottom + 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -305,14 +305,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           onTap: () => context.go('/onboarding'),
                         ),
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 10),
                       Text(
                         tr('welcome.quizNote'),
                         style: T.caption.copyWith(
                           color: C.ivory.withValues(alpha: 0.65),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 4),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

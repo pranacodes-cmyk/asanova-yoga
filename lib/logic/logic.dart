@@ -1064,8 +1064,10 @@ bool breathCueDue(List<int> pattern, int sec) {
 
 // ------------------------------------------------------------ over-the-air content
 
-/// Content format both clients understand; a server update with another schema is ignored.
-const int kContentSchema = 1;
+/// Content compatibility both clients understand; a server update with another schema is ignored.
+/// Bumped when content needs this build's code or media: 2 = meditation timings measured on the
+/// `voice-aac-lc-64-v2` narration, which older builds (schema 1, older clips) must never apply.
+const int kContentSchema = 2;
 
 typedef OtaFile = ({String hash, int bytes});
 typedef OtaCached = ({int schema, int seq, String hash});

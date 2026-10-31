@@ -6,8 +6,9 @@ import 'package:enso/logic/logic.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final base = <String, dynamic>{'schema': 1, 'seq': 3, 'files': {'en': 'aaa', 'hi': 'bbb'}};
-  Map<String, dynamic> remote(int seq, [String hash = 'ccc', int schema = 1]) => {
+  const s = kContentSchema;
+  final base = <String, dynamic>{'schema': s, 'seq': 3, 'files': {'en': 'aaa', 'hi': 'bbb'}};
+  Map<String, dynamic> remote(int seq, [String hash = 'ccc', int schema = s]) => {
         'schema': schema,
         'seq': seq,
         'files': {'en': {'hash': hash, 'bytes': 10}},
@@ -24,14 +25,19 @@ void main() {
   test('ignores another content schema', () {
     expect(otaPick(base, remote(9, 'ccc', kContentSchema + 1), 'en', null), isNull);
   });
+  test('never applies content timed for the older narration (schema 1)', () {
+    expect(kContentSchema, 2);
+    expect(otaPick(base, remote(9, 'ccc', 1), 'en', null), isNull);
+    expect(otaUseCached(base, (schema: 1, seq: 9, hash: 'x')), isFalse);
+  });
   test('does not download what is already saved', () {
-    expect(otaPick(base, remote(4), 'en', (schema: 1, seq: 4, hash: 'ccc')), isNull);
-    expect(otaPick(base, remote(5, 'ddd'), 'en', (schema: 1, seq: 4, hash: 'ccc')), (hash: 'ddd', bytes: 10));
+    expect(otaPick(base, remote(4), 'en', (schema: s, seq: 4, hash: 'ccc')), isNull);
+    expect(otaPick(base, remote(5, 'ddd'), 'en', (schema: s, seq: 4, hash: 'ccc')), (hash: 'ddd', bytes: 10));
   });
   test('uses a saved update only when newer than the bundled content', () {
-    expect(otaUseCached(base, (schema: 1, seq: 4, hash: 'x')), isTrue);
-    expect(otaUseCached(base, (schema: 1, seq: 3, hash: 'x')), isFalse);
-    expect(otaUseCached(base, (schema: 2, seq: 9, hash: 'x')), isFalse);
+    expect(otaUseCached(base, (schema: s, seq: 4, hash: 'x')), isTrue);
+    expect(otaUseCached(base, (schema: s, seq: 3, hash: 'x')), isFalse);
+    expect(otaUseCached(base, (schema: s + 1, seq: 9, hash: 'x')), isFalse);
     expect(otaUseCached(base, null), isFalse);
   });
   test('rejects incomplete content and accepts the shipped file', () {

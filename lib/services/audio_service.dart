@@ -11,6 +11,7 @@ import '../logic/coach.dart';
 import '../logic/lesson_media.dart' show voicePath;
 import '../logic/logic.dart' show fallbackVoiceLocales, fallbackVoiceRank;
 import 'media_store.dart';
+import 'fallback_voice.dart';
 
 /// Every player mixes with the others instead of taking Android audio focus.
 /// With the plugin default (focus "gain") the coach's voice clip stole focus from the
@@ -20,20 +21,21 @@ class AudioSetup {
   static final AudioContext context = AudioContextConfig(
     focus: AudioContextConfigFocus.mixWithOthers,
   ).build();
-  static bool _globalDone = false;
-  static final Set<String> _configured = {};
+  static Future<void>? _globalSetup;
+  static final Map<String, Future<void>> _configured = {};
 
   static Future<void> ensure(AudioPlayer player) async {
     try {
-      if (!_globalDone) {
-        _globalDone = true;
-        await AudioPlayer.global.setAudioContext(context);
-      }
-      if (_configured.add(player.playerId)) {
-        await player.setAudioContext(context);
-      }
+      await (_globalSetup ??= AudioPlayer.global.setAudioContext(context));
     } catch (e) {
-      debugPrint('Asanova audio context: $e');
+      _globalSetup = null;
+      rethrow;
+    }
+    try {
+      await (_configured[player.playerId] ??= player.setAudioContext(context));
+    } catch (e) {
+      _configured.remove(player.playerId);
+      rethrow;
     }
   }
 }
@@ -203,7 +205,7 @@ class Voice {
   Voice._();
   static final AudioPlayer _player = AudioPlayer(playerId: 'voice');
   static final FlutterTts _tts = FlutterTts();
-  static bool _ready = false;
+  static Future<void>? _initializing;
   static StreamSubscription<void>? _sub;
   static final ValueNotifier<bool> speaking = ValueNotifier(false);
   static List<String> _queue = [];
@@ -212,18 +214,20 @@ class Voice {
   static double _rate = 0.95;
   static VoidCallback? _onDone;
 
-  static Future<void> _init() async {
-    if (_ready) return;
-    _ready = true;
+  static Future<void> _init() => _initializing ??= _initialize();
+
+  static Future<void> _initialize() async {
     try {
       await AudioSetup.ensure(_player);
       await _player.setReleaseMode(ReleaseMode.stop);
-      _sub = _player.onPlayerComplete.listen((_) => _next(_token));
+      _sub ??= _player.onPlayerComplete.listen((_) => _next(_token));
       await _tts.setPitch(1.0);
       await _tts.setVolume(1.0);
       await _tts.awaitSpeakCompletion(false);
     } catch (e) {
+      _initializing = null;
       debugPrint('Asanova voice init: $e');
+      rethrow;
     }
   }
 
@@ -235,7 +239,6 @@ class Voice {
   static Future<void> _pickVoice() async {
     final lang = appLang;
     if (_voiceLang == lang) return;
-    _voiceLang = lang;
     try {
       await _tts.setLanguage(fallbackVoiceLocales(lang).first);
       final voices = await _tts.getVoices;
@@ -249,8 +252,9 @@ class Voice {
                 fallbackVoiceRank(lang, '${a['locale']}')! -
                 fallbackVoiceRank(lang, '${b['locale']}')!,
           );
-      final pick =
-          ok
+      final pick = defaultTargetPlatform == TargetPlatform.iOS
+          ? bestIosVoice(ok)
+          : ok
               .where(
                 (v) => RegExp(
                   'female|en-us-x-tpf|en-gb-x-gba|sfg',
@@ -263,8 +267,11 @@ class Voice {
         await _tts.setVoice({
           'name': '${pick['name']}',
           'locale': '${pick['locale']}',
+          if (defaultTargetPlatform == TargetPlatform.iOS && pick['identifier'] != null)
+            'identifier': '${pick['identifier']}',
         });
       }
+      _voiceLang = lang;
     } catch (e) {
       debugPrint('Asanova voice language: $e');
     }
@@ -314,13 +321,18 @@ class Voice {
     if (!Content.i.voice.contains(key)) return _fallback(line, t);
     try {
       await _player.setPlaybackRate((_rate / 0.95).clamp(0.8, 1.25));
+      if (t != _token) return;
       final src = MediaStore.source(voicePath(key));
       final Source source = switch (src.origin) {
         MediaOrigin.file => DeviceFileSource(src.path),
         MediaOrigin.asset => AssetSource(voiceAsset(key)),
         MediaOrigin.network => UrlSource(src.path),
       };
-      await _player.play(source, volume: 1.0);
+      await _player.setSource(source);
+      if (t != _token) return;
+      await _player.setVolume(1.0);
+      if (t != _token) return;
+      await _player.resume();
     } catch (e) {
       debugPrint('Asanova voice clip: $e');
       if (t == _token) await _fallback(line, t);
@@ -328,16 +340,19 @@ class Voice {
   }
 
   static Future<void> _fallback(String line, int t) async {
+    if (t != _token) return;
     try {
       _tts.setCompletionHandler(() => _next(t));
       _tts.setCancelHandler(() {});
       _tts.setErrorHandler((_) => _next(t));
       await _pickVoice();
+      if (t != _token) return;
       await _tts.setSpeechRate((_rate * 0.5).clamp(0.2, 0.8));
+      if (t != _token) return;
       await _tts.speak(line);
     } catch (e) {
       debugPrint('Asanova tts: $e');
-      _next(t);
+      if (t == _token) _next(t);
     }
   }
 
