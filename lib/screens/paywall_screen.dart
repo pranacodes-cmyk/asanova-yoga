@@ -225,7 +225,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  const PaywallFilm(),
+                                  PaywallFilm(key: ValueKey(isExit), exit: isExit),
                                   Positioned(
                                     top: topInset(context) + 6,
                                     right: 16,

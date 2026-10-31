@@ -6,12 +6,11 @@ import 'package:http/http.dart' as http;
 import '../services/app_links.dart';
 import '../i18n/i18n.dart';
 
-/// Public insert-only inbox (the same Asanova backend the web app writes to; a test checks both
-/// point at one project). The publishable key cannot read messages.
+/// Public insert-only inbox. The publishable key cannot read messages.
 class FeedbackService {
   static const _url =
-      'https://qixwbpmtmtgmsqtksorl.supabase.co/rest/v1/app_feedback';
-  static const _key = 'sb_publishable_Qq0Hqg0X2UyYXlCPAR97BA_Ndy78dNn';
+      'https://tscfsqsspefeyqdubomc.supabase.co/rest/v1/app_feedback';
+  static const _key = 'sb_publishable_D03d-W9aRIAkdQc5OUX7IA_wSFlWvQx';
 
   static String newId() {
     final r = Random.secure();

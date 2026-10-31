@@ -16,7 +16,7 @@ List<String> get _pillars => [
   tr('welcome.pillarBelong'),
 ];
 
-/// First screen: looping practice film (poster image until it plays), headline and the quiz CTA.
+/// First screen: cinematic tutor film played once (poster image until it plays), headline and the quiz CTA.
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
   @override
@@ -31,7 +31,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   void initState() {
     super.initState();
     final v = VideoPlayerController.asset(
-      'assets/video/yf-tree.mp4',
+      'assets/video/welcome-cinematic.mp4',
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );
     _video = v;
@@ -40,7 +40,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         .then((_) async {
           if (!mounted) return;
           await v.setVolume(0);
-          await v.setLooping(true);
+          // cinematic opener plays once and holds its last, eyes-closed frame
+          await v.setLooping(false);
           await v.play();
           if (mounted) setState(() => _playing = true);
         })

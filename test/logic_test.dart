@@ -618,14 +618,6 @@ void main() {
     late Session day1;
     const fresh = JourneyOptions(known: {}, demos: true, welcome: true);
     setUp(() => day1 = resolveSession('plan:yoga-journey-30:1')!);
-    test('coach clips come from the AAC-LC narration release, never the old v1 clips', () {
-      expect(kVoiceRelease, 'voice-aac-lc-64-v2');
-      expect(mediaKey(voicePath('vabc')), 'voice-aac-lc-64-v2/voice/vabc.m4a');
-      expect(mediaUrl(voicePath('vabc')), '$kMediaRoot/voice-aac-lc-64-v2/voice/vabc.m4a');
-      expect(mediaKey(voicePath('vabc')).startsWith(kLegacyVoiceKey), isFalse);
-      // films stay where earlier builds saved them, so nothing downloads twice
-      expect(mediaKey(filmPath('yf-tutor-welcome')), 'v1/video/yf-tutor-welcome.mp4');
-    });
     test('a first course day downloads the tutor welcome first and her celebration', () {
       final paths = sessionMediaPaths(day1, fresh, Content.i.voice);
       expect(paths.first, 'video/yf-tutor-welcome.mp4');

@@ -6,15 +6,17 @@ import '../theme/tokens.dart';
 
 /// Full-bleed 16:9 tutor film (1080p, seamless ping-pong loop) for the paywall cover; the wide
 /// frame keeps the teacher's whole body inside any cover height. Mirrors web PaywallFilm.
+/// `exit` shows the cinematic exit-offer film once and holds its last frame (palms at heart).
 class PaywallFilm extends StatefulWidget {
-  const PaywallFilm({super.key});
+  const PaywallFilm({super.key, this.exit = false});
+  final bool exit;
   @override
   State<PaywallFilm> createState() => _PaywallFilmState();
 }
 
 class _PaywallFilmState extends State<PaywallFilm> {
-  final _controller = VideoPlayerController.asset(
-    'assets/video/paywall-studio.mp4',
+  late final _controller = VideoPlayerController.asset(
+    widget.exit ? 'assets/video/paywall-exit.mp4' : 'assets/video/paywall-studio.mp4',
     videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
   );
   bool _ready = false;
@@ -26,7 +28,7 @@ class _PaywallFilmState extends State<PaywallFilm> {
         .initialize()
         .then((_) async {
           await _controller.setVolume(0);
-          await _controller.setLooping(true);
+          await _controller.setLooping(!widget.exit);
           if (!mounted) return;
           setState(() => _ready = true);
           if (!MediaQuery.disableAnimationsOf(context)) {
@@ -60,7 +62,7 @@ class _PaywallFilmState extends State<PaywallFilm> {
                 ),
               )
             : Image.asset(
-                'assets/images/paywall-studio.jpg',
+                widget.exit ? 'assets/images/paywall-exit.jpg' : 'assets/images/paywall-studio.jpg',
                 fit: BoxFit.cover,
               ),
       ),

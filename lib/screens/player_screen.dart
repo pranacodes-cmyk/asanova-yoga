@@ -628,6 +628,24 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
       fit: StackFit.expand,
       children: [
         film,
+        // soft fade from the film into the coaching panel (web: bottom gradient)
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 44,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [C.forest.withValues(alpha: 0), C.forest],
+                ),
+              ),
+            ),
+          ),
+        ),
         if (phase == _Phase.ready || phase == _Phase.rest)
           ColoredBox(
             color: C.forest.withValues(alpha: 0.4),
@@ -832,10 +850,19 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
                     label: tr('common.close'),
                   ),
                   Expanded(
-                    child: Text(
-                      header,
-                      textAlign: TextAlign.center,
-                      style: T.caption.c(C.ivory.withValues(alpha: 0.7)),
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: C.ivory.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          header,
+                          textAlign: TextAlign.center,
+                          style: T.caption.c(C.ivory.withValues(alpha: 0.85)).tab,
+                        ),
+                      ),
                     ),
                   ),
                   CircleBtn(
@@ -983,10 +1010,10 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
                               ),
                               const SizedBox(height: 14),
                               ClipRRect(
-                                borderRadius: BorderRadius.circular(2),
+                                borderRadius: BorderRadius.circular(4),
                                 child: LinearProgressIndicator(
                                   value: _overall,
-                                  minHeight: 2,
+                                  minHeight: 4,
                                   backgroundColor: C.ivory.withValues(
                                     alpha: 0.15,
                                   ),

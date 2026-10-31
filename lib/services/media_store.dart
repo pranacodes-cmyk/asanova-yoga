@@ -20,6 +20,13 @@ typedef MediaSource = ({MediaOrigin origin, String path});
 class MediaStore {
   MediaStore._();
   static Directory? _dir;
+  static Directory? _voiceDir;
+
+  /// Coach clips are cached apart from films (their own server namespace, web `mediaUrl`).
+  static File? _fileFor(String path) {
+    final d = path.startsWith('voice/') ? _voiceDir : _dir;
+    return d == null ? null : File('${d.path}/$path');
+  }
   static Set<String> _bundled = const {};
   static final Set<String> _saving = {};
 
@@ -30,12 +37,12 @@ class MediaStore {
   static Future<void> init() async {
     try {
       final support = await getApplicationSupportDirectory();
-      // Files are kept by [mediaKey]: films in `media/v1/video` (where earlier builds saved them,
-      // so no film downloads again), voice in `media/<voice release>/voice`.
-      _dir = Directory('${support.path}/media');
+      _dir = Directory('${support.path}/media/v1');
       await _dir!.create(recursive: true);
-      // Clips saved from the older, lower-quality narration release are never played again.
-      final legacy = Directory('${_dir!.path}/$kLegacyVoiceKey');
+      _voiceDir = Directory('${support.path}/media/voice-aac-lc-64-v2');
+      await _voiceDir!.create(recursive: true);
+      // legacy HE-AAC clips are never played again: free their space
+      final legacy = Directory('${_dir!.path}/voice');
       if (legacy.existsSync()) unawaited(legacy.delete(recursive: true).catchError((_) => legacy));
     } catch (e) {
       debugPrint('Asanova media dir: $e');
@@ -51,13 +58,13 @@ class MediaStore {
   /// `video/x.mp4` ships in the app as `assets/video/x.mp4`.
   static bool isBundled(String path) => _bundled.contains('assets/$path');
 
-  static String url(String path) => mediaUrl(path);
+  static String url(String path) => mediaUrlFor(path);
 
   /// The downloaded copy, or null.
   static File? cached(String path) {
-    final d = _dir;
+    final d = _fileFor(path);
     if (d == null) return null;
-    final f = File('${d.path}/${mediaKey(path)}');
+    final f = d;
     return f.existsSync() && f.lengthSync() > 0 ? f : null;
   }
 
@@ -150,7 +157,7 @@ class MediaStore {
         if (expected != null && expected > 0 && expected != res.bodyBytes.length) {
           throw HttpException('incomplete $p: ${res.bodyBytes.length}/$expected bytes');
         }
-        final f = File('${d.path}/${mediaKey(p)}');
+        final f = _fileFor(p) ?? File('${d.path}/$p');
         await f.parent.create(recursive: true);
         final tmp = File('${f.path}.part');
         await tmp.writeAsBytes(res.bodyBytes, flush: true);
