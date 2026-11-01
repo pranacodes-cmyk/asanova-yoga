@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../services/audio_service.dart';
+
 const _max = 90;
 
 /// Splits a line into short subtitle pages: sentences first, then words (or characters).
@@ -45,7 +47,20 @@ List<String> captionPages(String text, {int max = _max}) {
   return pages.isEmpty ? [text] : pages;
 }
 
-/// Subtitle pages that change by themselves in time with the voice, like film subtitles.
+/// Page shown when [fraction] (0–1) of the line has been spoken, weighted by page length.
+int pageAt(List<String> pages, double fraction) {
+  final chars = math.max(1, pages.fold<int>(0, (n, p) => n + p.length));
+  var t = 0.0;
+  for (var i = 0; i < pages.length - 1; i++) {
+    t += pages[i].length / chars;
+    if (fraction < t) return i;
+  }
+  return pages.length - 1;
+}
+
+/// Subtitle pages that follow the voice clip's real playback position, like film subtitles. Only
+/// when no clip reports progress (device voice, voice off) do pages advance on the estimated
+/// reading time; once the clip has driven the pages, they never fall back to the estimate.
 class PlayerCaption extends StatefulWidget {
   const PlayerCaption({
     super.key,
@@ -68,6 +83,7 @@ class _PlayerCaptionState extends State<PlayerCaption> {
   Timer? _timer;
   double _elapsed = 0;
   int _page = 0;
+  bool _fromVoice = false;
   late List<String> _pages = captionPages(widget.text);
 
   @override
@@ -77,29 +93,38 @@ class _PlayerCaptionState extends State<PlayerCaption> {
       _pages = captionPages(widget.text);
       _elapsed = 0;
       _page = 0;
+      _fromVoice = false;
+      _sync();
     }
+  }
+
+  void _show(int i) {
+    if (i != _page && mounted) setState(() => _page = i);
+  }
+
+  void _sync() {
+    if (_pages.length < 2 || Voice.currentLine != widget.text) return;
+    final f = Voice.progress.value;
+    if (f == null) return;
+    _fromVoice = true;
+    _show(pageAt(_pages, f));
   }
 
   @override
   void initState() {
     super.initState();
+    Voice.progress.addListener(_sync);
     _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (!widget.running || _pages.length < 2) return;
       _elapsed += 0.1;
-      final total = math.max(1.0, widget.readingSeconds);
-      final chars = _pages.fold<int>(0, (n, p) => n + p.length);
-      var t = 0.0;
-      var i = 0;
-      for (; i < _pages.length - 1; i++) {
-        t += total * _pages[i].length / chars;
-        if (_elapsed < t) break;
-      }
-      if (i != _page) setState(() => _page = i);
+      if (_fromVoice) return;
+      _show(pageAt(_pages, _elapsed / math.max(1.0, widget.readingSeconds)));
     });
   }
 
   @override
   void dispose() {
+    Voice.progress.removeListener(_sync);
     _timer?.cancel();
     super.dispose();
   }

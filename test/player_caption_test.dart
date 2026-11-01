@@ -17,4 +17,11 @@ void main() {
   test('Japanese text without spaces splits', () {
     expect(captionPages('あ' * 200).length, 3);
   });
+  test('pageAt follows voice progress', () {
+    final pages = ['a' * 50, 'b' * 50];
+    expect(pageAt(pages, 0), 0);
+    expect(pageAt(pages, 0.49), 0);
+    expect(pageAt(pages, 0.5), 1);
+    expect(pageAt(pages, 1), 1);
+  });
 }

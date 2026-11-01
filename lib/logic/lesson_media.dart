@@ -16,13 +16,13 @@ const kVoiceBase = 'https://pub-e1f33e62495044f8b81b29fa39490d18.r2.dev/voice-aa
 String mediaUrlFor(String path) => path.startsWith('voice/') ? '$kVoiceBase/$path' : '$kMediaBase/$path';
 
 /// The tutor's course welcome and end-of-practice celebration films.
-const kTutorWelcomeFilm = 'yc-yoga-flow-v2';
-const kTutorCongratsFilm = 'yc-yoga-flow-v2';
+const kTutorWelcomeFilm = 'yc-yoga-flow-v3';
+const kTutorCongratsFilm = 'yc-yoga-flow-v3';
 
-/// Full selected flow plays once and holds its ending; narration is independent.
-const kTutorWelcomeStopSeconds = 19.95;
-bool filmPlaybackComplete(String? film, double seconds) =>
-    film == kTutorWelcomeFilm && seconds >= kTutorWelcomeStopSeconds;
+/// The course cinematic loops seamlessly (crossfaded master) while narration plays; nothing holds.
+const kTutorWelcomeStopSeconds = double.infinity;
+const kTutorFilmPoster = 'yc-yoga-flow-v2-poster';
+bool filmPlaybackComplete(String? film, double seconds) => false;
 
 String filmPath(String film) => 'video/$film.mp4';
 String voicePath(String key) => 'voice/$key.m4a';

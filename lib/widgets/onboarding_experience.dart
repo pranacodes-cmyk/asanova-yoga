@@ -363,29 +363,39 @@ class _ChapterCardState extends State<ChapterCard> {
     _startBreath();
   }
 
-  void _startBreath() {
+  /// Each phase lasts its breath length, measured from when its spoken cue actually starts, and
+  /// never ends before that cue has finished: a clip that starts late (downloaded voice, slow
+  /// audio start) used to let the exhale cue cut the inhale cue off.
+  bool _alive = true;
+  Future<void> _phaseWait(int seconds) async {
+    final deadline = DateTime.now().add(const Duration(milliseconds: 1500));
+    while (_alive && !Voice.speaking.value && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    final end = DateTime.now().add(Duration(seconds: seconds));
+    while (_alive && (DateTime.now().isBefore(end) || Voice.speaking.value)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+  }
+
+  Future<void> _startBreath() async {
     if (!widget.chapter.breath) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) widget.onBreath?.call(BreathPhase.inhale);
-    });
-    _timers.add(
-      Timer(const Duration(seconds: breathIn), () {
-        if (!mounted) return;
-        setState(() => phase = BreathPhase.exhale);
-        widget.onBreath?.call(BreathPhase.exhale);
-      }),
-    );
-    _timers.add(
-      Timer(const Duration(seconds: breathIn + breathOut), () {
-        if (!mounted) return;
-        setState(() => phase = BreathPhase.done);
-        widget.onBreath?.call(BreathPhase.done);
-      }),
-    );
+    await WidgetsBinding.instance.endOfFrame;
+    if (!_alive) return;
+    widget.onBreath?.call(BreathPhase.inhale);
+    await _phaseWait(breathIn);
+    if (!_alive) return;
+    setState(() => phase = BreathPhase.exhale);
+    widget.onBreath?.call(BreathPhase.exhale);
+    await _phaseWait(breathOut);
+    if (!_alive) return;
+    setState(() => phase = BreathPhase.done);
+    widget.onBreath?.call(BreathPhase.done);
   }
 
   @override
   void dispose() {
+    _alive = false;
     for (final t in _timers) {
       t.cancel();
     }

@@ -208,6 +208,12 @@ class Voice {
   static Future<void>? _initializing;
   static StreamSubscription<void>? _sub;
   static final ValueNotifier<bool> speaking = ValueNotifier(false);
+  /// Line whose clip is playing and how far through it the voice is (0–1); null progress when
+  /// the device voice reads it, so captions fall back to estimated timing (web `voice.progress`).
+  static String? currentLine;
+  static final ValueNotifier<double?> progress = ValueNotifier(null);
+  static Duration? _dur;
+  static StreamSubscription<Duration>? _pos;
   static List<String> _queue = [];
   static bool _busy = false;
   static int _token = 0;
@@ -221,6 +227,11 @@ class Voice {
       await AudioSetup.ensure(_player);
       await _player.setReleaseMode(ReleaseMode.stop);
       _sub ??= _player.onPlayerComplete.listen((_) => _next(_token));
+      _pos ??= _player.onPositionChanged.listen((p) {
+        final d = _dur;
+        if (currentLine == null || d == null || d.inMilliseconds <= 0) return;
+        progress.value = (p.inMilliseconds / d.inMilliseconds).clamp(0.0, 1.0);
+      });
       await _tts.setPitch(1.0);
       await _tts.setVolume(1.0);
       await _tts.awaitSpeakCompletion(false);
@@ -302,6 +313,7 @@ class Voice {
   }
 
   static void _finish() {
+    if (currentLine != null) progress.value = 1;
     _busy = false;
     speaking.value = false;
     Ambient.duck(false);
@@ -318,6 +330,9 @@ class Voice {
     speaking.value = true;
     Ambient.duck(true);
     final key = voiceKey(line);
+    currentLine = line;
+    _dur = null;
+    progress.value = null;
     if (!Content.i.voice.contains(key)) return _fallback(line, t);
     try {
       await _player.setPlaybackRate((_rate / 0.95).clamp(0.8, 1.25));
@@ -330,6 +345,9 @@ class Voice {
       };
       await _player.setSource(source);
       if (t != _token) return;
+      _dur = await _player.getDuration();
+      if (t != _token) return;
+      if (_dur != null) progress.value = 0;
       await _player.setVolume(1.0);
       if (t != _token) return;
       await _player.resume();
@@ -367,6 +385,8 @@ class Voice {
 
   static Future<void> stop() async {
     _token++;
+    currentLine = null;
+    progress.value = null;
     _queue = [];
     _onDone = null;
     final wasBusy = _busy;

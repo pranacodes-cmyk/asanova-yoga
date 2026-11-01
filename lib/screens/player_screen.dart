@@ -956,7 +956,7 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
                                         running: running,
                                         // Finish revealing the line even when voice fails and
                                         // Narration falls back to its minimum reading time.
-                                        readingSeconds: speechSeconds([_text]) * 0.5,
+                                        readingSeconds: speechSeconds([_text]),
                                         style: T.bodySm.copyWith(
                                           color: C.ivory.withValues(
                                             alpha: _voiceLed ? 0.85 : 0.65,

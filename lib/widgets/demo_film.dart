@@ -123,7 +123,7 @@ class _DemoFilmState extends State<DemoFilm> {
       return;
     }
     _c = c;
-    c.setLooping(widget.loop && widget.film != kTutorWelcomeFilm);
+    c.setLooping(widget.loop);
     c.setVolume(0);
     c.addListener(_holdWelcome);
     c
