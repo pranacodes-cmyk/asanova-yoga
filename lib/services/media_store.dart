@@ -184,7 +184,7 @@ class MediaStore {
     final todo = missing(paths);
     if (todo.isEmpty || _dir == null) return Future.value();
     final run = (_prefetching ?? Future.value())
-        .then((_) => download(missing(todo), onProgress: (_, __) {}, cancelled: () => false))
+        .then((_) => download(missing(todo), onProgress: (_, _) {}, cancelled: () => false))
         .catchError((Object e) => debugPrint('Asanova voice prefetch: $e'));
     return _prefetching = run;
   }

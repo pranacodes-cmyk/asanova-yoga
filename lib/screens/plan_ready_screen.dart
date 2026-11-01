@@ -414,7 +414,7 @@ const _phaseColors = [
 ];
 
 class _Result extends StatelessWidget {
-  const _Result({super.key});
+  const _Result();
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();

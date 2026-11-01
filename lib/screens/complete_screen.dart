@@ -94,7 +94,8 @@ class _CompleteScreenState extends State<CompleteScreen> {
           const [],
     );
 
-    if (!isMed && !_cinematicDone) return EnsoScaffold(
+    if (!isMed && !_cinematicDone) {
+      return EnsoScaffold(
       background: C.forest, lightIcons: true,
       body: Stack(fit: StackFit.expand, children: [
         TutorCelebration(title: entry.title, completion: completion,
@@ -103,6 +104,7 @@ class _CompleteScreenState extends State<CompleteScreen> {
         const IgnorePointer(child: Confetti()),
       ]),
     );
+    }
     final statTiles = [
       (LucideIcons.clock, minutes, tr('complete.statMinutes')),
       isMed

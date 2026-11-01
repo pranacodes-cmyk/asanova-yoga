@@ -593,7 +593,7 @@ void main() {
         for (final f in Content.i.flows)
           if (f.demo != null) f.demo!,
         kTutorWelcomeFilm,
-        kTutorCongratsFilm,
+        // kTutorCongratsFilm shares the same selected film key, so it is already in the set
       }) {
         expect(uploaded.containsKey(filmPath(d)), isTrue, reason: d);
       }

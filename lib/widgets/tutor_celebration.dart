@@ -76,12 +76,14 @@ class _TutorCelebrationState extends State<TutorCelebration> {
       CompletionKind.course => tr('complete.courseComplete'),
       CompletionKind.single => tr('complete.sessionComplete'),
     };
-    if (widget.onContinue != null) return CourseCinematic(
+    if (widget.onContinue != null) {
+      return CourseCinematic(
       film: kTutorCongratsFilm, eyebrow: eyebrow, title: widget.title,
       caption: _caption, running: _running,
       onToggle: () { setState(() => _running = !_running); if (!_running) { _narr?.pause(); } else if (_narr == null) { _play(); } else { _narr?.resume(); } },
       onContinue: () { _narr?.dispose(); widget.onContinue?.call(); },
     );
+    }
     return Column(
       children: [
         Reveal(
