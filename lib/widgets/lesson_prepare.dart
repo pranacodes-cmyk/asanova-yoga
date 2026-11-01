@@ -10,6 +10,7 @@ import '../i18n/i18n.dart';
 import '../data/content.dart';
 import '../logic/coach.dart';
 import '../logic/lesson_media.dart';
+import '../services/analytics_service.dart';
 import '../services/audio_service.dart';
 import '../services/media_store.dart';
 import '../state/app_state.dart';
@@ -92,6 +93,9 @@ class _LessonPrepareState extends State<LessonPrepare> {
       _total = _missing.length;
     });
     _cycle?.setRunning(true);
+    final files = _missing.length;
+    final watch = Stopwatch()..start();
+    AnalyticsService.event('lesson_download_started', {'files': files});
     try {
       await MediaStore.download(
         _missing,
@@ -105,7 +109,16 @@ class _LessonPrepareState extends State<LessonPrepare> {
       _cycle?.setRunning(false);
       setState(() => _missing = MediaStore.missing(widget.paths));
       if (!_ready) setState(() => _failed = true);
-    } catch (_) {
+      AnalyticsService.event(
+        _ready ? 'lesson_download_completed' : 'lesson_download_failed',
+        {'files': files, 'missing': _missing.length, 'duration_ms': watch.elapsedMilliseconds},
+      );
+    } catch (e) {
+      AnalyticsService.event('lesson_download_failed', {
+        'files': files,
+        'duration_ms': watch.elapsedMilliseconds,
+        'error': '$e'.length > 120 ? '$e'.substring(0, 120) : '$e',
+      });
       if (!mounted) return;
       Voice.stop();
       _cycle?.setRunning(false);

@@ -12,6 +12,7 @@ import '../data/models.dart';
 import '../logic/coach.dart';
 import '../logic/lesson_media.dart';
 import '../logic/logic.dart';
+import '../services/analytics_service.dart';
 import '../services/audio_service.dart';
 import '../services/narration.dart';
 import '../state/app_state.dart';
@@ -106,7 +107,13 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
       : Content.i.plan(session.planId!);
   bool get multiDay => plan != null && plan!.days.length > 1;
 
-  _Phase phase = _Phase.ready;
+  /// Opens directly on the screen its narration will start, so the first exercise never
+  /// flashes for the 700 ms before the welcome / day intro begins.
+  late _Phase phase = widget.opts.welcome && plan != null
+      ? _Phase.welcome
+      : session.intro.isNotEmpty
+          ? _Phase.intro
+          : _Phase.ready;
   int index = 0;
   double remaining = _readySec;
   bool running = true;
@@ -142,6 +149,14 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
   void initState() {
     super.initState();
     WakelockPlus.enable();
+    AnalyticsService.event('session_started', {
+      'session_id': session.id,
+      'plan_id': session.planId ?? '',
+      'day': session.day ?? 0,
+      'items': items.length,
+      'welcome': phase == _Phase.welcome,
+    });
+    _trackExercise();
     Sfx.play('sfx-bell-start', 0.6);
     _syncMusic();
     _last = DateTime.now();
@@ -152,8 +167,31 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
     });
   }
 
+  int _trackedIndex = -1;
+  void _trackExercise() {
+    if (_trackedIndex == index) return;
+    _trackedIndex = index;
+    AnalyticsService.event('session_exercise', {
+      'session_id': session.id,
+      'index': index,
+      'exercise_id': item.e,
+      'flow_id': item.f ?? '',
+      'items': items.length,
+    });
+  }
+
   @override
   void dispose() {
+    if (!finished) {
+      AnalyticsService.event('session_abandoned', {
+        'session_id': session.id,
+        'plan_id': session.planId ?? '',
+        'day': session.day ?? 0,
+        'at_index': index,
+        'items': items.length,
+        'elapsed_sec': elapsed.round(),
+      });
+    }
     _tick?.cancel();
     _turnTimer?.cancel();
     _narr?.dispose();
@@ -289,6 +327,7 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
     final dt = now.difference(_last).inMicroseconds / 1e6;
     _last = now;
     if (phase != _Phase.ready && phase != _Phase.welcome) elapsed += dt;
+    _trackExercise();
     if (_voiceLed) return;
     final prev = remaining;
     final next = prev - dt;

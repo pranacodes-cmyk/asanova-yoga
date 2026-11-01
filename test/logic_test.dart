@@ -1307,4 +1307,18 @@ void main() {
       expect(bundlesVoice('ja'), isFalse);
     });
   });
+
+  group('analyticsAnswer', () {
+    test('never sends health or name answers', () {
+      expect(analyticsAnswer('zones', ['knees', 'back']), 2);
+      expect(analyticsAnswer('limitations', 'pregnancy'), 'answered');
+      expect(analyticsAnswer('name', 'Mohit'), 'answered');
+    });
+    test('sends ordinary answers as-is', () {
+      expect(analyticsAnswer('experience', 'new'), 'new');
+      expect(analyticsAnswer('goals', ['stress', 'back']), 'back,stress');
+      expect(analyticsAnswer('dailyMinutes', 15), 15);
+      expect(analyticsAnswer('goals', null), isNull);
+    });
+  });
 }

@@ -6,11 +6,11 @@ import 'logic.dart';
 /// Lesson media served from the Asanova media server (Cloudflare R2) and kept on the phone
 /// after the first download (web `src/lib/lesson-media.ts`, kept 1:1).
 /// Paths are relative to the versioned media root: `video/<film>.mp4`, `voice/<key>.m4a`.
-const kMediaBase = 'https://pub-e1f33e62495044f8b81b29fa39490d18.r2.dev/v1';
+const kMediaBase = 'https://yogamedia.pranacodes.in/v1';
 
 /// Coach clips (AAC-LC 64 kb/s) live in their own versioned namespace, so builds that play the
 /// legacy `v1/voice` clips keep working and no phone mixes old cached clips with new ones.
-const kVoiceBase = 'https://pub-e1f33e62495044f8b81b29fa39490d18.r2.dev/voice-aac-lc-64-v2';
+const kVoiceBase = 'https://yogamedia.pranacodes.in/voice-aac-lc-64-v2';
 
 /// Server URL of a media path (web `mediaUrl`).
 String mediaUrlFor(String path) => path.startsWith('voice/') ? '$kVoiceBase/$path' : '$kMediaBase/$path';

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../logic/logic.dart';
+import '../services/analytics_service.dart';
 import '../services/app_links.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
@@ -37,6 +38,7 @@ class _RateBodyState extends State<_RateBody> {
 
   Future<void> _submit() async {
     final nav = Navigator.of(context);
+    AnalyticsService.event('rating_submitted', {'stars': stars, 'to_store': ratingGoesToStore(stars)});
     widget.app.setRatedApp();
     nav.pop();
     if (ratingGoesToStore(stars)) {

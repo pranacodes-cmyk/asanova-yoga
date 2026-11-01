@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'logic/logic.dart';
+import 'services/analytics_service.dart';
 import 'screens/achievements_screen.dart';
 import 'screens/breathe_screen.dart';
 import 'screens/category_screen.dart';
@@ -80,6 +81,7 @@ CustomTransitionPage<void> _page(
 GoRouter buildRouter(AppState app) {
   return GoRouter(
     navigatorKey: Toast.navigatorKey,
+    observers: [AnalyticsObserver()],
     initialLocation: '/',
     refreshListenable: app,
     redirect: (context, state) {

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../data/content.dart';
 import '../logic/logic.dart';
+import '../services/analytics_service.dart';
 import '../services/app_links.dart';
 import '../services/purchase_service.dart';
 import '../state/app_state.dart';
@@ -17,6 +18,7 @@ import '../widgets/sheet.dart';
 import '../widgets/tab_shell.dart';
 import '../widgets/toast.dart';
 import '../widgets/ui.dart';
+import '../widgets/more_apps.dart';
 import '../i18n/i18n.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -579,6 +581,7 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                  const MoreApps(),
                   _Group(
                     title: tr('profile.support'),
                     children: [
@@ -625,6 +628,41 @@ class ProfileScreen extends StatelessWidget {
                   _Group(
                     title: tr('profile.about'),
                     children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            _RowIcon(LucideIcons.activity),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    tr('profile.usageStats'),
+                                    style: T.body.w(FontWeight.w600),
+                                  ),
+                                  Text(
+                                    tr('profile.usageStatsHint'),
+                                    style: T.tiny.copyWith(color: C.muted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: app.privacy.analytics,
+                              activeTrackColor: C.jade,
+                              onChanged: (v) {
+                                app.setAnalyticsEnabled(v);
+                                AnalyticsService.setEnabled(v);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
                       _Row(
                         icon: LucideIcons.shield,
                         label: tr('profile.privacyPolicy'),

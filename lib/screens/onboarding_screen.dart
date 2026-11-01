@@ -10,6 +10,7 @@ import '../data/content.dart';
 import '../data/models.dart';
 import '../logic/coach.dart';
 import '../logic/logic.dart';
+import '../services/analytics_service.dart';
 import '../services/audio_service.dart';
 import '../services/notification_service.dart';
 import '../state/app_state.dart';
@@ -110,6 +111,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final step = steps[index];
     final first = steps.indexWhere((s) => s.section == step.section) == index;
     final ch = _chapter;
+    AnalyticsService.event('onboarding_step_viewed', {
+      'step_index': index,
+      'step_id': step.id,
+      'step_type': step.type,
+      'section': step.section,
+      'total_steps': steps.length,
+    });
     final open =
         direction > 0 &&
         first &&
@@ -197,6 +205,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void next() {
     if (!mounted) return;
     FocusScope.of(context).unfocus();
+    final leaving = steps[index];
+    final answer = analyticsAnswer(
+      leaving.id,
+      context.read<AppState>().profile.toJson()[leaving.id],
+    );
+    AnalyticsService.event('onboarding_step_completed', {
+      'step_index': index,
+      'step_id': leaving.id,
+      'section': leaving.section,
+      if (answer != null) 'answer': answer,
+    });
     if (index < steps.length - 1) {
       setState(() {
         direction = 1;
@@ -217,6 +236,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _closeChapter();
       return;
     }
+    AnalyticsService.event('onboarding_back', {'step_index': index, 'step_id': steps[index].id});
     if (index == 0) {
       context.go('/welcome');
     } else {

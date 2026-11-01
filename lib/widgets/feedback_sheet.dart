@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../services/analytics_service.dart';
 import '../services/feedback_service.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
@@ -55,6 +56,7 @@ class _FeedbackFormState extends State<_FeedbackForm> {
       _error = null;
     });
     try {
+      AnalyticsService.event('feedback_sent', {'length': _message.text.length});
       await FeedbackService.send(
         id: _id,
         message: _message.text,

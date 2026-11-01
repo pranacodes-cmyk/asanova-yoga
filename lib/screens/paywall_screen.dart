@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../data/content.dart';
 import '../i18n/i18n.dart';
 import '../logic/logic.dart';
+import '../services/analytics_service.dart';
 import '../services/audio_service.dart';
 import '../services/purchase_service.dart';
 import '../state/app_state.dart';
@@ -68,6 +69,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
       );
     }
     selected = _offers.first.id;
+    AnalyticsService.event('paywall_viewed', {'variant': variant, 'from': widget.from});
     // Real store prices replace the placeholders as soon as they load.
     PurchaseService.warmUp().then((_) {
       if (mounted) setState(() {});
@@ -94,6 +96,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   /// Ask once why, then reveal the matching offer before showing its paywall.
   Future<void> _close() async {
     if (surveyOpen) return;
+    AnalyticsService.event('paywall_closed', {'variant': variant, 'from': widget.from, 'plan': selected});
     final app = context.read<AppState>();
     if (!shouldAskExitSurvey(variant, app.exitSurveyAsked)) {
       _leave();
@@ -108,6 +111,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (!mounted) return;
     surveyOpen = false;
     if (reason == null) return;
+    AnalyticsService.event('exit_survey_answered', {'reason': reason, 'variant': variant});
     // Re-check trial eligibility right before choosing, in case offerings loaded late.
     await PurchaseService.warmUp();
     if (!mounted) return;
@@ -119,9 +123,16 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => reveal = next);
   }
 
+  void _select(String plan) {
+    setState(() => selected = plan);
+    AnalyticsService.event('paywall_plan_selected', {'plan': plan, 'variant': variant});
+  }
+
   void _showRevealedOffer() {
     final next = reveal;
     if (next == null) return;
+    AnalyticsService.event('paywall_offer_revealed', {'offer': next});
+    AnalyticsService.event('paywall_viewed', {'variant': next, 'from': widget.from});
     setState(() {
       variant = next;
       selected = _offers.first.id;
@@ -133,7 +144,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
   Future<void> _buy() async {
     if (busy) return;
     setState(() => busy = true);
+    AnalyticsService.event('purchase_started', {'plan': selected, 'variant': variant, 'from': widget.from});
     final ok = await PurchaseService.purchase(selected);
+    AnalyticsService.event(ok ? 'purchase_completed' : 'purchase_failed', {
+      'plan': selected,
+      'variant': variant,
+      'from': widget.from,
+      if (!ok && PurchaseService.lastError != null) 'error': PurchaseService.lastError!,
+    });
     if (!mounted) return;
     setState(() => busy = false);
     if (!ok) {
@@ -384,10 +402,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                                                     selected: selected == o.id,
                                                     onTap: busy
                                                         ? null
-                                                        : () => setState(
-                                                            () =>
-                                                                selected = o.id,
-                                                          ),
+                                                        : () => _select(o.id),
                                                   ),
                                                 ),
                                               ],
@@ -406,9 +421,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                                               selected: selected == o.id,
                                               onTap: busy
                                                   ? null
-                                                  : () => setState(
-                                                      () => selected = o.id,
-                                                    ),
+                                                  : () => _select(o.id),
                                             ),
                                           ),
                                       ],
@@ -446,8 +459,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
                                               : () async {
                                                   final app = context
                                                       .read<AppState>();
+                                                  AnalyticsService.event('restore_tapped');
                                                   final restored =
                                                       await PurchaseService.restore();
+                                                  AnalyticsService.event(restored ? 'restore_completed' : 'restore_nothing');
                                                   Toast.show(
                                                     restored
                                                         ? tr(

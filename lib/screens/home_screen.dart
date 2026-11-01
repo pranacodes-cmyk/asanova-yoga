@@ -49,9 +49,6 @@ class HomeScreen extends StatelessWidget {
         ? 10
         : app.profile.dailyMinutes;
     final c = Content.i;
-    final challenge = dailyPick(c.dailyChallenges, now);
-    final challengeKey = '$today:${challenge.id}';
-    final challengeState = app.challenges[challengeKey];
     final quote = dailyPick(c.quotes, now, 3);
     final tip = dailyPick(c.tips, now, 7);
     final evening = now.hour >= 17 || now.hour < 5;
@@ -64,26 +61,6 @@ class HomeScreen extends StatelessWidget {
     final name = app.profile.name;
     final premium = app.premium.active;
     final heroLocked = !planDone && isDayLocked(plan, dayNumber, premium);
-    // the 60-day daily practice (seated or standing); offer the other one if it's already the main plan
-    var dailyId = dailyPlanId(
-      limitations: app.profile.limitations,
-      style: app.profile.style,
-    );
-    if (dailyId == plan.id) {
-      dailyId = c.dailyPlanIds.firstWhere(
-        (id) => id != plan.id,
-        orElse: () => dailyId,
-      );
-    }
-    final daily = c.plan(dailyId)!;
-    final dailyDone =
-        app.planProgress[daily.id]?.completedDays ?? const <int>[];
-    final dailyDay = nextPlanDay(daily.days.length, dailyDone);
-    final dailyToday = app.history.any(
-      (h) => h.planId == daily.id && dateKey(h.completedAt) == today,
-    );
-    final dailyLocked = isDayLocked(daily, dailyDay, premium);
-
     final leadFree = homeLeadsWithFree(heroLocked, completed.isNotEmpty);
     final freeQ = c.quickSessions.firstWhere(
       (q) => q.id == freePickQuickId(now.hour),
@@ -308,129 +285,6 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
     );
-    final Widget dailyCard = Reveal(
-      delay: 0.15,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: _DailyPracticeCard(
-          plan: daily,
-          day: dailyDay,
-          doneDays: dailyDone.length,
-          doneToday: dailyToday,
-          locked: dailyLocked,
-          weightKg: app.profile.weightKg,
-          onTap: () => context.push(
-            dailyLocked
-                ? '/paywall?from=plan'
-                : '/session/${planSessionId(daily.id, dailyDay)}',
-          ),
-          onOpen: () => context.push('/plan/${daily.id}'),
-        ),
-      ),
-    );
-    final Widget habit = Reveal(
-      delay: 0.18,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 500),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: challengeState == 'done' ? G.jade : null,
-            color: challengeState == 'done' ? null : C.ivory,
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: S.card,
-          ),
-          child: Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: challengeState == 'done'
-                          ? C.ivory.withValues(alpha: 0.15)
-                          : C.terracottaSoft,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: challengeState == 'done'
-                        ? const Icon(
-                            LucideIcons.check,
-                            size: 28,
-                            color: C.ivory,
-                          )
-                        : ContentIcon(
-                            challenge.icon,
-                            size: 28,
-                            color: C.terracotta,
-                          ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Eyebrow(
-                          tr('home.mindfulHabit'),
-                          color: challengeState == 'done'
-                              ? C.ivory.withValues(alpha: 0.7)
-                              : C.terracotta,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          challenge.title,
-                          style: T.title.c(
-                            challengeState == 'done' ? C.ivory : C.ink,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          challengeState == 'done'
-                              ? tr('home.habitDone')
-                              : challenge.description,
-                          style: T.caption.copyWith(
-                            fontSize: 14,
-                            height: 1.5,
-                            color: challengeState == 'done'
-                                ? C.ivory.withValues(alpha: 0.8)
-                                : C.muted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (challengeState != 'done') ...[
-                const SizedBox(height: 16),
-                Pressable(
-                  onTap: () => app.setChallenge(
-                    challengeKey,
-                    challengeState == 'accepted' ? 'done' : 'accepted',
-                  ),
-                  child: Container(
-                    height: 48,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: challengeState == 'accepted' ? C.jade : C.ink,
-                      borderRadius: BorderRadius.circular(48),
-                    ),
-                    child: Text(
-                      challengeState == 'accepted'
-                          ? tr('home.markAsDone')
-                          : tr('home.acceptChallenge'),
-                      style: T.label.c(C.ivory),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
     final Widget quick = Reveal(
       delay: 0.22,
       child: Column(
@@ -463,11 +317,6 @@ class HomeScreen extends StatelessWidget {
     ];
 
     final intention = dailyPick(c.affirmations, now, 5);
-    final pose = dailyPick(
-      c.exercises.where((e) => isPoseOfDayCandidate(e.id, e.category)).toList(),
-      now,
-      11,
-    );
     final ancient = c.plans
         .where((p) => p.group == _ancientGroup && !p.isSingleSession)
         .toList();
@@ -510,13 +359,6 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-    final Widget poseOfDay = Reveal(
-      delay: 0.16,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: _PoseOfDay(pose),
       ),
     );
     final Widget ancientShelf = ancient.isEmpty
@@ -695,21 +537,15 @@ class HomeScreen extends StatelessWidget {
 
             if (!leadFree) ...[
               planHero,
+              if (!premium) ...offerCard,
               const SizedBox(height: 16),
               rings,
-              if (!premium) ...offerCard,
               const SizedBox(height: 32),
               breatheNow,
-              const SizedBox(height: 28),
-              dailyCard,
-              const SizedBox(height: 16),
-              poseOfDay,
               const SizedBox(height: 36),
               quick,
               const SizedBox(height: 36),
               ancientShelf,
-              const SizedBox(height: 28),
-              habit,
               const SizedBox(height: 28),
               const FeedbackInvite(),
             ] else ...[
@@ -758,24 +594,18 @@ class HomeScreen extends StatelessWidget {
                         ),
                 ),
               ),
+              const SizedBox(height: 32),
+              const _MadeForYouHeader(),
+              planHero,
+              if (!premium) ...offerCard,
               const SizedBox(height: 16),
               rings,
-              if (!premium) ...offerCard,
               const SizedBox(height: 32),
               breatheNow,
-              const SizedBox(height: 28),
-              poseOfDay,
               const SizedBox(height: 36),
               quick,
               const SizedBox(height: 36),
-              const _MadeForYouHeader(),
-              planHero,
-              const SizedBox(height: 16),
-              dailyCard,
-              const SizedBox(height: 36),
               ancientShelf,
-              const SizedBox(height: 28),
-              habit,
               const SizedBox(height: 28),
               const FeedbackInvite(),
             ],
@@ -1016,110 +846,6 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 36),
-
-            // learn
-            Reveal(
-              delay: 0.34,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SectionHeader(tr('home.learnTheTradition')),
-                  HScroll(
-                    gap: 14,
-                    children: [
-                      for (final g in c.guides)
-                        Pressable(
-                          onTap: () => context.push('/guide/${g.id}'),
-                          child: Container(
-                            width: 180,
-                            height: 230,
-                            clipBehavior: Clip.antiAlias,
-                            decoration: BoxDecoration(
-                              color: C.ivory,
-                              borderRadius: BorderRadius.circular(26),
-                              boxShadow: S.soft,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SizedBox(
-                                  height: 120,
-                                  width: double.infinity,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      EImage(img(g.image)),
-                                      Positioned(
-                                        left: 10,
-                                        top: 10,
-                                        child: Glass(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 4,
-                                          ),
-                                          child: Text(
-                                            trTag(g.tag).toUpperCase(),
-                                            style: T.tiny.copyWith(
-                                              fontSize: 10,
-                                              letterSpacing: 1,
-                                              fontWeight: FontWeight.w700,
-                                              color: C.ivory,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        g.title,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: T.label.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                          height: 1.3,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            LucideIcons.bookOpen,
-                                            size: 12,
-                                            color: C.muted,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Flexible(
-                                            child: Text(
-                                              tr('guide.minRead', {
-                                                'n': g.minutes,
-                                              }),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: T.tiny.w(FontWeight.w500),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
               ),
             ),
             const SizedBox(height: 40),
@@ -1490,233 +1216,6 @@ class _BreathTile extends StatelessWidget {
                 ),
                 if (locked) ...[const SizedBox(width: 6), const PremiumBadge()],
               ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Today's pose: the still, its Sanskrit name and focus, opening the full pose guide.
-class _PoseOfDay extends StatelessWidget {
-  const _PoseOfDay(this.e);
-  final Exercise e;
-  @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      onTap: () => context.push('/exercise/${e.id}'),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: C.ivory,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: S.card,
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: Container(
-                width: 132,
-                height: 132,
-                color: C.sand,
-                child: EImage(img(e.image)),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Eyebrow(tr('home.poseOfTheDay'), color: C.jade),
-                  const SizedBox(height: 6),
-                  Text(
-                    e.baseName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: T.title.copyWith(height: 1.15),
-                  ),
-                  if (e.sanskrit != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      e.sanskrit!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: T.serifAccent.copyWith(
-                        fontSize: 17,
-                        color: C.jadeDeep,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Text(
-                    e.focus.take(3).map((f) => trTag(f)).join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: T.caption,
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          tr('home.learnThePose'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: T.label.copyWith(fontSize: 14, color: C.jade),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        LucideIcons.arrowRight,
-                        size: 15,
-                        color: C.jade,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DailyPracticeCard extends StatelessWidget {
-  const _DailyPracticeCard({
-    required this.plan,
-    required this.day,
-    required this.doneDays,
-    required this.doneToday,
-    required this.locked,
-    required this.weightKg,
-    required this.onTap,
-    required this.onOpen,
-  });
-  final Plan plan;
-  final int day, doneDays;
-  final bool doneToday, locked;
-  final double weightKg;
-  final VoidCallback onTap, onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final d = plan.days[day - 1];
-    final hasAffirmation = d.items.any(
-      (it) => Content.i.exercise(it.e)?.isAffirmation ?? false,
-    );
-    return Pressable(
-      onTap: onOpen,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: C.ivory,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: S.card,
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                RoundedImage(img(plan.image), size: 92, radius: 22),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Eyebrow(
-                        tr('home.dailyChallengeDay', {'day': day}),
-                        color: C.terracotta,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(plan.title, style: T.title),
-                      const SizedBox(height: 2),
-                      Text(
-                        tr('home.dailyCardMeta', {
-                          'minutes': formatMinutes(totalSeconds(d.items)),
-                          'n': poseCount(d.items),
-                          'affirmation': hasAffirmation ? 'yes' : 'no',
-                        }),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: T.caption,
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Bar(
-                              value: doneDays / plan.days.length,
-                              height: 6,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            '$doneDays/${plan.days.length}',
-                            style: T.tiny
-                                .copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: C.ink,
-                                )
-                                .tab,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Pressable(
-              onTap: onTap,
-              child: Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  color: locked ? null : (doneToday ? C.jadeSoft : C.ink),
-                  gradient: locked ? G.gold : null,
-                  borderRadius: BorderRadius.circular(48),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      locked
-                          ? LucideIcons.crown
-                          : (doneToday
-                                ? LucideIcons.check
-                                : Icons.play_arrow_rounded),
-                      size: locked || doneToday ? 18 : 22,
-                      color: locked
-                          ? C.ink
-                          : (doneToday ? C.jadeDeep : C.ivory),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        locked
-                            ? tr('plan.unlockDayWithPlus', {'day': day})
-                            : (doneToday
-                                  ? tr('home.doneTodayPracticeDay', {
-                                      'day': day,
-                                    })
-                                  : tr('home.startDayTitle', {
-                                      'day': day,
-                                      'title': d.title,
-                                    })),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: T.label.c(
-                          locked ? C.ink : (doneToday ? C.jadeDeep : C.ivory),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),

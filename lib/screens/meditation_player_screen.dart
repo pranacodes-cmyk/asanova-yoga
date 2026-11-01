@@ -11,11 +11,13 @@ import '../data/content.dart';
 import '../data/models.dart';
 import '../logic/coach.dart';
 import '../logic/logic.dart';
+import '../services/analytics_service.dart';
 import '../services/audio_service.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
 import '../widgets/breath_orb.dart';
+import '../widgets/player_caption.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/sheet.dart';
 import '../widgets/toast.dart';
@@ -54,6 +56,9 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen> {
 
   @override
   void dispose() {
+    if (_started && elapsed < total) {
+      AnalyticsService.event('meditation_abandoned', {'meditation_id': m!.id, 'elapsed_sec': elapsed, 'total_sec': total});
+    }
     _t?.cancel();
     Voice.stop();
     Ambient.stop();
@@ -76,7 +81,15 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen> {
     return entry.id;
   }
 
+  bool _started = false;
+
   void _setRunning(bool v) {
+    if (v && !_started) {
+      _started = true;
+      AnalyticsService.event('meditation_started', {'meditation_id': m!.id, 'minutes': m!.minutes});
+    } else if (_started && v != running) {
+      AnalyticsService.event(v ? 'meditation_resumed' : 'meditation_paused', {'meditation_id': m!.id, 'elapsed_sec': elapsed});
+    }
     setState(() => running = v);
     _t?.cancel();
     if (v) {
@@ -447,20 +460,24 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen> {
                         else
                           CalmOrb(running: running, size: 270),
                         const SizedBox(height: 24),
+                        // Long lines page like the video player's subtitles (following the
+                        // voice clip), so nothing is ever clipped below the box.
                         SizedBox(
-                          height: 64,
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 800),
+                          height: 96,
+                          child: Center(
                             child: ConstrainedBox(
-                              key: ValueKey(
-                                running || elapsed > 0 ? line : m!.subtitle,
-                              ),
                               constraints: const BoxConstraints(maxWidth: 320),
-                              child: Text(
-                                running || elapsed > 0 ? line : m!.subtitle,
-                                textAlign: TextAlign.center,
+                              child: PlayerCaption(
+                                key: ValueKey(
+                                  running || elapsed > 0 ? line : m!.subtitle,
+                                ),
+                                text: running || elapsed > 0 ? line : m!.subtitle,
+                                running: running,
+                                readingSeconds: speechSeconds([
+                                  running || elapsed > 0 ? line : m!.subtitle,
+                                ]),
                                 style: T.serifAccent.copyWith(
-                                  fontSize: 21.6,
+                                  fontSize: 20,
                                   height: 1.3,
                                   color: C.ivory.withValues(alpha: 0.85),
                                 ),

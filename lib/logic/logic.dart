@@ -1104,3 +1104,21 @@ bool otaValid(Object? json) {
 /// every other language fetches the same clips from the media server the moment it is picked.
 const bundledVoiceLangs = ['en', 'hi'];
 bool bundlesVoice(String lang) => bundledVoiceLangs.contains(lang);
+
+// ---------------------------------------------------------------- analytics
+
+/// Onboarding answers that stay on the device: health (pain zones, limitations) and free text (name).
+const analyticsPrivateSteps = ['zones', 'limitations', 'name'];
+
+/// What an onboarding answer looks like in analytics. Private steps only report
+/// that they were answered (and how many items for multi-selects), never the value.
+Object? analyticsAnswer(String stepId, Object? value) {
+  if (value == null || value == '') return null;
+  final isPrivate = analyticsPrivateSteps.contains(stepId);
+  if (value is List) {
+    if (isPrivate) return value.length;
+    return (value.map((v) => '$v').toList()..sort()).join(',');
+  }
+  if (isPrivate) return 'answered';
+  return value is num ? value : '$value';
+}

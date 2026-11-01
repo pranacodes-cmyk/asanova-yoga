@@ -13,6 +13,7 @@ import 'logic/coach.dart' show CoachLines, voiceKey;
 import 'logic/lesson_media.dart' show voicePath;
 import 'logic/logic.dart' show bundlesVoice, resolveLanguage, supportedLanguages;
 import 'router.dart';
+import 'services/analytics_service.dart';
 import 'services/audio_service.dart';
 import 'services/notification_service.dart';
 import 'services/purchase_service.dart';
@@ -23,6 +24,7 @@ import 'theme/text.dart';
 import 'theme/tokens.dart';
 
 Future<void> main() async {
+  final startup = Stopwatch()..start();
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -33,6 +35,14 @@ Future<void> main() async {
   final app = await AppState.load();
   final lang = resolveLanguage(app.language, deviceLanguageTags());
   if (lang != 'en') await Content.load(lang);
+  await AnalyticsService.init(enabled: app.privacy.analytics);
+  AnalyticsService.register({
+    'app_language': lang,
+    'premium': app.premium.active,
+    'premium_plan': app.premium.plan ?? 'none',
+    'onboarded': app.onboarded,
+    'sessions_done': app.history.length,
+  });
   Haptics.enabled = app.audio.haptics;
   unawaited(
     PurchaseService.syncEntitlement(
@@ -47,6 +57,12 @@ Future<void> main() async {
       child: EnsoApp(app: app),
     ),
   );
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    AnalyticsService.event('app_opened', {
+      'startup_ms': startup.elapsedMilliseconds,
+      'onboarded': app.onboarded,
+    });
+  });
   _bootstrapReminders(app);
   _prefetchAppVoice();
   // A newer lesson update (if any) downloads quietly and is used from the next launch.

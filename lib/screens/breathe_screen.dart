@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../logic/logic.dart';
 import '../logic/coach.dart';
+import '../services/analytics_service.dart';
 import '../services/audio_service.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
@@ -51,6 +52,8 @@ class _BreatheScreenState extends State<BreatheScreen> {
   bool running = false;
   int left = 0;
   Timer? _t;
+  Timer? _cd;
+  int? count;
   late BreathCycle cycle = _makeCycle();
   late final AppState app = context.read<AppState>();
 
@@ -78,6 +81,7 @@ class _BreatheScreenState extends State<BreatheScreen> {
   @override
   void dispose() {
     _t?.cancel();
+    _cd?.cancel();
     cycle.dispose();
     Ambient.stop();
     Voice.stop();
@@ -93,6 +97,23 @@ class _BreatheScreenState extends State<BreatheScreen> {
     });
   }
 
+  void _countdown() {
+    if (count != null || running) return;
+    Haptics.light();
+    setState(() => count = 3);
+    _cd = Timer.periodic(const Duration(seconds: 1), (t) {
+      final n = (count ?? 1) - 1;
+      if (n <= 0) {
+        t.cancel();
+        setState(() => count = null);
+        _start();
+      } else {
+        Haptics.light();
+        setState(() => count = n);
+      }
+    });
+  }
+
   void _start() {
     cycle.dispose();
     cycle = _makeCycle();
@@ -100,6 +121,7 @@ class _BreatheScreenState extends State<BreatheScreen> {
       left = mins * 60;
       running = true;
     });
+    AnalyticsService.event('breathing_started', {'pattern_id': pid, 'minutes': mins});
     cycle.setRunning(true);
     Sfx.play('sfx-bell-start', 0.5);
     Ambient.play('ambient-bowls', 0.35);
@@ -111,6 +133,8 @@ class _BreatheScreenState extends State<BreatheScreen> {
 
   void _stop() {
     _t?.cancel();
+    _cd?.cancel();
+    count = null;
     cycle.setRunning(false);
     setState(() => running = false);
     Ambient.stop();
@@ -208,14 +232,39 @@ class _BreatheScreenState extends State<BreatheScreen> {
                           ? orbSize + 20
                           : math.max(orbSize + 36, constraints.maxHeight - 374),
                       child: Center(
-                        child: BreathOrb.cycle(
-                          cycle: cycle,
-                          running: running,
-                          size: orbSize,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            AnimatedOpacity(
+                              duration: const Duration(milliseconds: 300),
+                              opacity: count != null ? 0.35 : 1,
+                              child: BreathOrb.cycle(
+                                cycle: cycle,
+                                running: running,
+                                quiet: count != null,
+                                size: orbSize,
+                              ),
+                            ),
+                            if (count != null)
+                              TweenAnimationBuilder<double>(
+                                key: ValueKey(count),
+                                tween: Tween(begin: 1.4, end: 1),
+                                duration: const Duration(milliseconds: 450),
+                                curve: Curves.easeOutCubic,
+                                builder: (_, v, child) => Opacity(
+                                  opacity: (2 - v).clamp(0, 1),
+                                  child: Transform.scale(scale: v, child: child),
+                                ),
+                                child: Text(
+                                  '$count',
+                                  style: T.displayLg.c(C.ivory).copyWith(fontSize: 96),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
-                    if (!running) ...[
+                    if (!running && count == null) ...[
                       Row(
                         children: [
                           for (final (i, x) in _patterns.indexed) ...[
@@ -295,7 +344,7 @@ class _BreatheScreenState extends State<BreatheScreen> {
                       EnsoButton(
                         label: tr('breathe.begin'),
                         variant: BtnVariant.ivory,
-                        onTap: _start,
+                        onTap: _countdown,
                       ),
                     ] else
                       EnsoButton(

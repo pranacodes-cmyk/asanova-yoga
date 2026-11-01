@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/content.dart';
 import '../data/models.dart';
 import '../logic/logic.dart';
+import '../services/analytics_service.dart';
 
 /// App state — mirrors src/lib/store.ts (same keys, same defaults, same actions).
 class AudioSettings {
@@ -110,17 +111,22 @@ class PrivacyChoice {
   final int version;
   final DateTime? decidedAt;
   final String? country;
+
+  /// Anonymous usage statistics (PostHog screen views); on by default, off from Profile → Privacy.
+  final bool analytics;
   const PrivacyChoice({
     this.ads = 'unset',
     this.version = 0,
     this.decidedAt,
     this.country,
+    this.analytics = true,
   });
   Map<String, dynamic> toJson() => {
     'ads': ads,
     'version': version,
     'decidedAt': decidedAt?.toIso8601String(),
     'country': country,
+    'analytics': analytics,
   };
   factory PrivacyChoice.fromJson(Map<String, dynamic> j) => PrivacyChoice(
     ads: j['ads'] is String ? j['ads'] : 'unset',
@@ -129,6 +135,7 @@ class PrivacyChoice {
         ? null
         : DateTime.tryParse(j['decidedAt'].toString()),
     country: j['country'] as String?,
+    analytics: j['analytics'] != false,
   );
 }
 
@@ -304,6 +311,7 @@ class AppState extends ChangeNotifier {
   }
 
   void completeOnboarding(String planId) {
+    AnalyticsService.event('onboarding_completed', {'plan_id': planId});
     onboarded = true;
     activePlanId = planId;
     planProgress.putIfAbsent(planId, () => PlanProgress(DateTime.now(), []));
@@ -314,18 +322,21 @@ class AppState extends ChangeNotifier {
   }
 
   void startPlan(String planId) {
+    AnalyticsService.event('plan_started', {'plan_id': planId});
     activePlanId = planId;
     planProgress.putIfAbsent(planId, () => PlanProgress(DateTime.now(), []));
     _commit();
   }
 
   void restartPlan(String planId) {
+    AnalyticsService.event('plan_restarted', {'plan_id': planId});
     activePlanId = planId;
     planProgress[planId] = PlanProgress(DateTime.now(), []);
     _commit();
   }
 
   void completeSession(HistoryEntry entry) {
+    AnalyticsService.event('session_completed', {'session_id': entry.sessionId, 'kind': entry.kind, 'plan_id': entry.planId ?? '', 'day': entry.day ?? 0, 'duration_sec': entry.durationSec});
     if (entry.planId != null && entry.day != null) {
       final current =
           planProgress[entry.planId!] ?? PlanProgress(entry.completedAt, []);
@@ -343,6 +354,7 @@ class AppState extends ChangeNotifier {
   }
 
   void rateEntry(String id, int feeling) {
+    AnalyticsService.event('session_feeling', {'feeling': feeling});
     for (final h in history) {
       if (h.id == id) h.feeling = feeling;
     }
@@ -350,31 +362,37 @@ class AppState extends ChangeNotifier {
   }
 
   void setPremium(String plan) {
+    AnalyticsService.event('premium_activated', {'plan': plan});
     premium = Premium(active: true, plan: plan, since: DateTime.now());
     _commit();
   }
 
   void cancelPremium() {
+    AnalyticsService.event('premium_cancelled');
     premium = const Premium();
     _commit();
   }
 
   void setPaywallOffer(String offer) {
+    AnalyticsService.event('paywall_offer_set', {'offer': offer});
     paywallOffer = offer;
     _commit();
   }
 
   void markExitSurveyAsked() {
+    AnalyticsService.event('exit_survey_shown');
     exitSurveyAsked = true;
     _commit();
   }
 
   void markRatePrompted(String day) {
+    AnalyticsService.event('rating_prompt_shown');
     ratePromptDay = day;
     _commit();
   }
 
   void setRatedApp() {
+    AnalyticsService.event('app_rated');
     ratedApp = true;
     _commit();
   }
@@ -389,21 +407,25 @@ class AppState extends ChangeNotifier {
   }
 
   void setReminders(void Function(Reminders r) patch) {
+    AnalyticsService.event('reminders_changed');
     patch(reminders);
     _commit();
   }
 
   void setAudio(void Function(AudioSettings a) patch) {
+    AnalyticsService.event('audio_settings_changed');
     patch(audio);
     _commit();
   }
 
   void setChallenge(String key, String status) {
+    AnalyticsService.event('challenge_$status', {'challenge': key});
     challenges = {...challenges, key: status};
     _commit();
   }
 
   void toggleFavorite(String id) {
+    AnalyticsService.event('favorite_toggled', {'item_id': id, 'on': !favorites.contains(id)});
     favorites = favorites.contains(id)
         ? favorites.where((f) => f != id).toList()
         : [...favorites, id];
@@ -423,17 +445,32 @@ class AppState extends ChangeNotifier {
       version: privacyNoticeVersion,
       decidedAt: DateTime.now(),
       country: country,
+      analytics: privacy.analytics,
+    );
+    _commit();
+  }
+
+  /// Turns anonymous usage statistics on/off (Profile → Privacy).
+  void setAnalyticsEnabled(bool on) {
+    privacy = PrivacyChoice(
+      ads: privacy.ads,
+      version: privacy.version,
+      decidedAt: privacy.decidedAt,
+      country: privacy.country,
+      analytics: on,
     );
     _commit();
   }
 
   /// Saves the app language (null follows the device language).
   void setLanguage(String? code) {
+    AnalyticsService.event('language_selected', {'language': code ?? 'device'});
     language = code;
     _commit();
   }
 
   void toggleDownload(String id) {
+    AnalyticsService.event('download_toggled', {'item_id': id});
     downloads = downloads.contains(id)
         ? downloads.where((d) => d != id).toList()
         : [...downloads, id];
