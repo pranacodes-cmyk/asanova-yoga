@@ -188,9 +188,21 @@ class Content {
 String imgKey(String asset) =>
     asset.split('/').last.replaceAll(RegExp(r'\.(jpg|png)$'), '');
 
+/// Photo keys that were byte-identical copies of another photo (web `IMAGE_ALIASES`);
+/// only the canonical file ships.
+const kImageAliases = <String, String>{
+  'yf-dog-plank': 'yf-downward-dog',
+  'yr-sun-a': 'yr-half-sun',
+  'yr-sun-soft': 'yr-half-sun',
+  'yf-chair-sun-breath': 'yf-chair-mountain',
+  'yf-sun-breath': 'yf-mountain',
+  'yf-tabletop': 'yf-cat-cow',
+};
+
 /// Bundled image asset by key. Saved history can name imagery that has since been retired
 /// from the bundle, so unknown keys fall back to the Today hero (same as web `img`).
 String img(String key) {
+  key = kImageAliases[key] ?? key;
   if (key.endsWith('.png')) return 'assets/images/$key';
   if (key.startsWith('logo')) return 'assets/images/$key.png';
   final known = !Content.loaded || Content.i.imageFocus.containsKey(key);

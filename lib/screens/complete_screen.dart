@@ -28,15 +28,19 @@ List<(int, String, String)> get _feelings => [
   (5, tr('complete.feelingBlissful'), 'lotus'),
 ];
 
-class CompleteScreen extends StatelessWidget {
+class CompleteScreen extends StatefulWidget {
   const CompleteScreen({super.key, required this.entryId});
   final String entryId;
-
+  @override
+  State<CompleteScreen> createState() => _CompleteScreenState();
+}
+class _CompleteScreenState extends State<CompleteScreen> {
+  bool _cinematicDone = false;
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final entry =
-        app.history.where((h) => h.id == entryId).firstOrNull ??
+        app.history.where((h) => h.id == widget.entryId).firstOrNull ??
         (app.history.isEmpty ? null : app.history.last);
     if (entry == null) {
       return EnsoScaffold(
@@ -90,6 +94,15 @@ class CompleteScreen extends StatelessWidget {
           const [],
     );
 
+    if (!isMed && !_cinematicDone) return EnsoScaffold(
+      background: C.forest, lightIcons: true,
+      body: Stack(fit: StackFit.expand, children: [
+        TutorCelebration(title: entry.title, completion: completion,
+          lines: completionLines(entry.planId, entry.day, doneBefore),
+          onContinue: () => setState(() => _cinematicDone = true)),
+        const IgnorePointer(child: Confetti()),
+      ]),
+    );
     final statTiles = [
       (LucideIcons.clock, minutes, tr('complete.statMinutes')),
       isMed
@@ -184,15 +197,7 @@ class CompleteScreen extends StatelessWidget {
                       ),
                     ),
                   ] else
-                    TutorCelebration(
-                      title: entry.title,
-                      completion: completion,
-                      lines: completionLines(
-                        entry.planId,
-                        entry.day,
-                        doneBefore,
-                      ),
-                    ),
+                    Text(entry.title, textAlign: TextAlign.center, style: T.displayLg.c(C.ivory)),
                   const SizedBox(height: 28),
                   Reveal(
                     delay: 0.6,

@@ -175,6 +175,20 @@ class MediaStore {
     throw last ?? HttpException('download failed: $p');
   }
 
+  static Future<void>? _prefetching;
+
+  /// Quietly saves [paths] (e.g. the onboarding voice of a just-picked language) with the same
+  /// parallel, verified, retrying download as lessons. Never throws; anything still missing
+  /// streams when spoken and is saved then, and the next call resumes where this one stopped.
+  static Future<void> prefetch(Iterable<String> paths) {
+    final todo = missing(paths);
+    if (todo.isEmpty || _dir == null) return Future.value();
+    final run = (_prefetching ?? Future.value())
+        .then((_) => download(missing(todo), onProgress: (_, __) {}, cancelled: () => false))
+        .catchError((Object e) => debugPrint('Asanova voice prefetch: $e'));
+    return _prefetching = run;
+  }
+
   /// Saves a streamed file in the background so it plays offline next time (best effort).
   static void cacheInBackground(String path) {
     final d = _dir;

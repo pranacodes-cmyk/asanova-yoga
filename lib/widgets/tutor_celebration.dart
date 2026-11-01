@@ -13,6 +13,7 @@ import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
 import 'demo_film.dart';
+import 'course_cinematic.dart';
 import 'sheet.dart';
 import 'ui.dart';
 
@@ -24,10 +25,12 @@ class TutorCelebration extends StatefulWidget {
     required this.title,
     required this.completion,
     required this.lines,
+    this.onContinue,
   });
   final String title;
   final Completion completion;
   final List<String> lines;
+  final VoidCallback? onContinue;
   @override
   State<TutorCelebration> createState() => _TutorCelebrationState();
 }
@@ -35,13 +38,14 @@ class TutorCelebration extends StatefulWidget {
 class _TutorCelebrationState extends State<TutorCelebration> {
   Narration? _narr;
   String _caption = '';
+  bool _running = true;
 
   @override
   void initState() {
     super.initState();
     _caption = widget.lines.isEmpty ? '' : widget.lines.first;
     Future.delayed(const Duration(milliseconds: 900), () {
-      if (mounted) _play();
+      if (mounted && _running) _play();
     });
   }
 
@@ -72,6 +76,12 @@ class _TutorCelebrationState extends State<TutorCelebration> {
       CompletionKind.course => tr('complete.courseComplete'),
       CompletionKind.single => tr('complete.sessionComplete'),
     };
+    if (widget.onContinue != null) return CourseCinematic(
+      film: kTutorCongratsFilm, eyebrow: eyebrow, title: widget.title,
+      caption: _caption, running: _running,
+      onToggle: () { setState(() => _running = !_running); if (!_running) { _narr?.pause(); } else if (_narr == null) { _play(); } else { _narr?.resume(); } },
+      onContinue: () { _narr?.dispose(); widget.onContinue?.call(); },
+    );
     return Column(
       children: [
         Reveal(
@@ -88,6 +98,8 @@ class _TutorCelebrationState extends State<TutorCelebration> {
                     children: [
                       const DemoFilm.keyed(
                         film: kTutorCongratsFilm,
+                        portrait: true,
+                        loop: false,
                         poster: 'tutor-seat',
                       ),
                       Positioned(
@@ -397,6 +409,8 @@ class _TutorWelcomeState extends State<_TutorWelcome> {
               borderRadius: BorderRadius.circular(28),
               child: const DemoFilm.keyed(
                 film: kTutorWelcomeFilm,
+                portrait: true,
+                loop: false,
                 poster: 'tutor-seat',
               ),
             ),

@@ -9,7 +9,9 @@ import 'package:provider/provider.dart';
 
 import 'data/content.dart';
 import 'i18n/i18n.dart';
-import 'logic/logic.dart' show resolveLanguage, supportedLanguages;
+import 'logic/coach.dart' show CoachLines, voiceKey;
+import 'logic/lesson_media.dart' show voicePath;
+import 'logic/logic.dart' show bundlesVoice, resolveLanguage, supportedLanguages;
 import 'router.dart';
 import 'services/audio_service.dart';
 import 'services/notification_service.dart';
@@ -46,8 +48,20 @@ Future<void> main() async {
     ),
   );
   _bootstrapReminders(app);
+  _prefetchAppVoice();
   // A newer lesson update (if any) downloads quietly and is used from the next launch.
   unawaited(ContentUpdates.check(Content.i.lang));
+}
+
+/// Languages without bundled voice fetch their onboarding + breath-cue clips straight away
+/// (the language screen and Welcome are silent, so they are ready before the coach speaks).
+void _prefetchAppVoice() {
+  final c = Content.i;
+  if (bundlesVoice(c.lang)) return;
+  unawaited(MediaStore.prefetch({
+    for (final l in CoachLines.appVoice(c.onboarding, c.onboardingChapters))
+      if (c.voice.contains(voiceKey(l))) voicePath(voiceKey(l)),
+  }));
 }
 
 Future<void> _bootstrapReminders(AppState app) async {
@@ -94,6 +108,7 @@ class _EnsoAppState extends State<EnsoApp> with WidgetsBindingObserver {
     } finally {
       _switchingLanguage = false;
     }
+    _prefetchAppVoice();
     if (!mounted) return;
     setState(() {});
     void mark(Element e) {

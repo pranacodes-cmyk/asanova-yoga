@@ -87,6 +87,19 @@ class CoachLines {
   /// Onboarding: after the opening breath.
   static List<String> onbArrived() => [tr('coach.onbArrived')];
 
+  /// Every line spoken outside lessons (onboarding + download-screen breath cues): bundled for
+  /// `bundlesVoice` languages, fetched right after the language is picked for the rest.
+  static List<String> appVoice(List<OnbStep> steps, List<OnbChapter> chapters) => [
+    for (final s in steps)
+      for (final o in s.options) ...onbReply(o),
+    for (final c in chapters) ...onbChapter(c),
+    ...onbBreath(CoachBreath.inhale),
+    ...onbBreath(CoachBreath.exhale),
+    ...onbArrived(),
+    ...breath(CoachBreath.inhale),
+    ...breath(CoachBreath.exhale),
+  ];
+
   static List<String> guide(Guide g) => [
     tr('coach.guideIntro', {'title': g.title, 'intro': g.intro}),
     for (final s in g.sections)

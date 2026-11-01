@@ -18,6 +18,7 @@ import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
 import '../widgets/demo_film.dart';
+import '../widgets/course_cinematic.dart';
 import '../widgets/lesson_prepare.dart';
 import '../widgets/player_caption.dart';
 import '../widgets/round_film.dart';
@@ -837,7 +838,11 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
       child: EnsoScaffold(
         background: C.forest,
         lightIcons: true,
-        body: Column(
+        body: phase == _Phase.welcome ? CourseCinematic(
+          film: kTutorWelcomeFilm, eyebrow: tr('journey.welcomeEyebrow'),
+          title: _title, caption: caption, running: running,
+          onToggle: _togglePlay, onContinue: _skipNext, onClose: _exit,
+        ) : Column(
           children: [
             Padding(
               padding: EdgeInsets.fromLTRB(16, top + 4, 16, 8),
@@ -851,7 +856,7 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
                   ),
                   Expanded(
                     child: Center(
-                      child: Container(
+                      child: header.isEmpty ? const SizedBox.shrink() : Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                         decoration: BoxDecoration(
                           color: C.ivory.withValues(alpha: 0.1),
@@ -969,7 +974,7 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceEvenly,
                                 children: [
-                                  CircleBtn(
+                                  if (phase != _Phase.welcome) CircleBtn(
                                     icon: Icons.skip_previous_rounded,
                                     tone: Tone.dark,
                                     size: 48,
@@ -998,7 +1003,7 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
                                       ),
                                     ),
                                   ),
-                                  CircleBtn(
+                                  if (phase != _Phase.welcome) CircleBtn(
                                     icon: Icons.skip_next_rounded,
                                     tone: Tone.dark,
                                     size: 48,
@@ -1009,7 +1014,7 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
                                 ],
                               ),
                               const SizedBox(height: 14),
-                              ClipRRect(
+                              if (phase != _Phase.welcome) ClipRRect(
                                 borderRadius: BorderRadius.circular(4),
                                 child: LinearProgressIndicator(
                                   value: _overall,

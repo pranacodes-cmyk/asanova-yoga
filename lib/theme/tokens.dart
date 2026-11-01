@@ -50,6 +50,11 @@ class G {
     colors: [Color(0xFF49382C), C.forest],
     stops: [0, 0.6],
   );
+  static const courseCinematic = LinearGradient(
+    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+    colors: [Color(0x441E1814), Color(0x001E1814), Color(0xE61E1814), C.forest],
+    stops: [0, 0.4, 0.65, 1],
+  );
   static final scrim = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,

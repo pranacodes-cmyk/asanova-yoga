@@ -31,6 +31,8 @@ class DemoFilm extends StatefulWidget {
     required Exercise exercise,
     this.playing = true,
     this.loop = true,
+    this.portrait = false,
+    this.contain = false,
     this.alignment = Alignment.center,
     String? intro,
     this.introOnly = false,
@@ -46,6 +48,8 @@ class DemoFilm extends StatefulWidget {
     required this.poster,
     this.playing = true,
     this.loop = true,
+    this.portrait = false,
+    this.contain = false,
     this.alignment = Alignment.center,
   }) : licensed = null,
        intro = null,
@@ -53,7 +57,7 @@ class DemoFilm extends StatefulWidget {
 
   final String? film, licensed, intro;
   final String poster;
-  final bool playing, loop, introOnly;
+  final bool playing, loop, introOnly, portrait, contain;
   final Alignment alignment;
   @override
   State<DemoFilm> createState() => _DemoFilmState();
@@ -142,7 +146,7 @@ class _DemoFilmState extends State<DemoFilm> {
     if (!filmPlaybackComplete(widget.film, seconds)) return;
     _held = true;
     c.pause();
-    c.seekTo(const Duration(milliseconds: 8800));
+    c.seekTo(Duration(milliseconds: (kTutorWelcomeStopSeconds * 1000).round()));
   }
 
   void _onIntro() {
@@ -191,7 +195,7 @@ class _DemoFilmState extends State<DemoFilm> {
         children: [
           Image.asset(
             img(widget.poster),
-            fit: BoxFit.cover,
+            fit: widget.contain ? BoxFit.contain : BoxFit.cover,
             alignment: widget.alignment,
             width: double.infinity,
             height: double.infinity,
@@ -201,10 +205,10 @@ class _DemoFilmState extends State<DemoFilm> {
           if (c != null && _ready)
             ClipRect(
               child: FittedBox(
-                fit: BoxFit.cover,
+                fit: widget.contain ? BoxFit.contain : BoxFit.cover,
                 alignment: widget.alignment,
                 child: SizedBox.fromSize(
-                  size: filmBox(c, square: widget.licensed == null),
+                  size: filmBox(c, square: widget.licensed == null && !widget.portrait),
                   child: VideoPlayer(c),
                 ),
               ),

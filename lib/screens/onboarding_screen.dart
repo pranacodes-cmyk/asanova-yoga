@@ -1145,7 +1145,7 @@ class _InsightCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         AspectRatio(
-                          aspectRatio: 0.78,
+                          aspectRatio: 1,
                           child: Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(18),
@@ -1155,7 +1155,10 @@ class _InsightCard extends StatelessWidget {
                               ),
                             ),
                             clipBehavior: Clip.antiAlias,
-                            child: EImage(img(o.image ?? '')),
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: EImage(img(o.image ?? ''), fit: BoxFit.contain),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 10),

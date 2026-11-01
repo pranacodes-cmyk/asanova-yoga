@@ -16,11 +16,11 @@ const kVoiceBase = 'https://pub-e1f33e62495044f8b81b29fa39490d18.r2.dev/voice-aa
 String mediaUrlFor(String path) => path.startsWith('voice/') ? '$kVoiceBase/$path' : '$kMediaBase/$path';
 
 /// The tutor's course welcome and end-of-practice celebration films.
-const kTutorWelcomeFilm = 'yf-tutor-welcome';
-const kTutorCongratsFilm = 'yf-tutor-congrats';
+const kTutorWelcomeFilm = 'yc-yoga-flow-v2';
+const kTutorCongratsFilm = 'yc-yoga-flow-v2';
 
-/// Reviewed eyes-closed frame after the Namaste gesture; narration is independent.
-const kTutorWelcomeStopSeconds = 9.6;
+/// Full selected flow plays once and holds its ending; narration is independent.
+const kTutorWelcomeStopSeconds = 19.95;
 bool filmPlaybackComplete(String? film, double seconds) =>
     film == kTutorWelcomeFilm && seconds >= kTutorWelcomeStopSeconds;
 

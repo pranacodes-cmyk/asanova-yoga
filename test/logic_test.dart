@@ -598,9 +598,9 @@ void main() {
         expect(uploaded.containsKey(filmPath(d)), isTrue, reason: d);
       }
     });
-    test('the app bundles only the onboarding, paywall and tutor films', () {
-      expect(bundledFilms, contains(kTutorWelcomeFilm));
-      expect(bundledFilms, contains(kTutorCongratsFilm));
+    test('course cinematics stay on the server while app-entry films stay bundled', () {
+      expect(bundledFilms, isNot(contains(kTutorWelcomeFilm)));
+      expect(bundledFilms, isNot(contains(kTutorCongratsFilm)));
       expect(bundledFilms.length, lessThanOrEqualTo(12));
       final shipped =
           Directory('assets/video')
@@ -620,8 +620,8 @@ void main() {
     setUp(() => day1 = resolveSession('plan:yoga-journey-30:1')!);
     test('a first course day downloads the tutor welcome first and her celebration', () {
       final paths = sessionMediaPaths(day1, fresh, Content.i.voice);
-      expect(paths.first, 'video/yf-tutor-welcome.mp4');
-      expect(paths, contains('video/yf-tutor-congrats.mp4'));
+      expect(paths.first, 'video/yc-tutor-welcome.mp4');
+      expect(paths, contains('video/yc-tutor-congrats.mp4'));
       expect(paths.toSet().length, paths.length);
     });
     test('a flow day downloads its continuous round films, never the old per-breath clips', () {
@@ -651,7 +651,7 @@ void main() {
           const JourneyOptions(known: {}, demos: true, welcome: false),
           Content.i.voice,
         );
-        expect(paths, isNot(contains('video/yf-tutor-welcome.mp4')));
+        expect(paths, isNot(contains('video/yc-tutor-welcome.mp4')));
         for (final p in paths.where((x) => x.startsWith('voice/'))) {
           expect(
             Content.i.voice.contains(p.substring(6, p.length - 4)),
@@ -1295,6 +1295,15 @@ void main() {
       expect(breathCueDue([4, 0, 6, 0], 4), isTrue);
       expect(breathCueDue([4, 0, 6, 0], 5), isFalse);
       expect(breathCueDue([4, 0, 6, 0], 20), isFalse);
+    });
+  });
+
+  group('bundled voice languages', () {
+    test('ships English and Hindi voice inside the app, downloads the rest', () {
+      expect(bundlesVoice('en'), isTrue);
+      expect(bundlesVoice('hi'), isTrue);
+      expect(bundlesVoice('es'), isFalse);
+      expect(bundlesVoice('ja'), isFalse);
     });
   });
 }

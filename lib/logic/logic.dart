@@ -1098,3 +1098,9 @@ bool otaValid(Object? json) {
   bool list(String k) => json[k] is List && (json[k] as List).isNotEmpty;
   return list('exercises') && list('plans') && list('meditations') && json['ui'] is Map;
 }
+
+// ------------------------------------------------------------ bundled voice
+/// Languages whose onboarding + breath-cue voice ships inside the app (the two biggest audiences);
+/// every other language fetches the same clips from the media server the moment it is picked.
+const bundledVoiceLangs = ['en', 'hi'];
+bool bundlesVoice(String lang) => bundledVoiceLangs.contains(lang);

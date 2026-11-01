@@ -10,12 +10,6 @@ import '../widgets/scaffold.dart';
 import '../widgets/ui.dart';
 import '../i18n/i18n.dart';
 
-List<String> get _pillars => [
-  tr('welcome.pillarMove'),
-  tr('welcome.pillarBreathe'),
-  tr('welcome.pillarBelong'),
-];
-
 /// First screen: cinematic tutor film played once (poster image until it plays), headline and the quiz CTA.
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -31,7 +25,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   void initState() {
     super.initState();
     final v = VideoPlayerController.asset(
-      'assets/video/welcome-cinematic.mp4',
+      'assets/video/welcome-clear.mp4',
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );
     _video = v;
@@ -60,8 +54,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   Widget build(BuildContext context) {
     final top = topInset(context);
     final bottom = bottomInset(context);
-    final focus = Content.i.focusOf('hero-welcome');
-    final avatars = Content.i.testimonials.take(4).toList();
+    const focus = Alignment.topCenter;
     final v = _video;
     return EnsoScaffold(
       background: C.forest,
@@ -70,9 +63,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         fit: StackFit.expand,
         children: [
           ClipRect(
-            child: KenBurns(
-              child: EImage(img('hero-welcome'), alignment: focus),
-            ),
+            child: EImage(img('hero-welcome'), alignment: focus),
           ),
           if (v != null && v.value.isInitialized)
             AnimatedOpacity(
@@ -112,16 +103,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             left: 0,
             right: 0,
             bottom: 0,
-            height: MediaQuery.sizeOf(context).height * 0.68,
-            child: const DecoratedBox(
+            height: MediaQuery.sizeOf(context).height * 0.48,
+            child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Color(0x00141E19),
-                    Color(0x8C141E19),
-                    Color(0xF0111A15),
+                    C.forest.withValues(alpha: 0),
+                    C.forest.withValues(alpha: 0.8),
+                    C.forest,
                   ],
                   stops: [0, 0.38, 1],
                 ),
@@ -150,65 +141,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
                           color: C.ivory,
-                          letterSpacing: -0.34,
-                        ),
-                      ),
-                      const Spacer(),
-                      Glass(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.star_rounded,
-                              size: 16,
-                              color: C.gold,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              tr('welcome.yogaYourWay'),
-                              style: T.tiny.copyWith(color: C.ivory),
-                            ),
-                          ],
+                          letterSpacing: 0,
                         ),
                       ),
                     ],
                   ),
                 ),
                 const Spacer(),
-                Reveal(
-                  delay: 0.35,
-                  dy: 12,
-                  child: Wrap(
-                    spacing: 6,
-                    children: [
-                      for (final p in _pillars)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: C.ivory.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(99),
-                            border: Border.all(
-                              color: C.ivory.withValues(alpha: 0.25),
-                            ),
-                          ),
-                          child: Text(
-                            p,
-                            style: T.tiny.copyWith(
-                              color: C.ivory.withValues(alpha: 0.9),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
                 Reveal(
                   delay: 0.45,
                   child: Text.rich(
@@ -218,77 +157,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         TextSpan(
                           text: tr('welcome.headlineRitualLine'),
                           style: T.serifAccent.copyWith(
-                            fontSize: 54.4,
+                            fontSize: 32,
                             color: C.ivory,
-                            height: 0.9,
+                            height: 1.12,
                           ),
                         ),
                       ],
                     ),
-                    style: T.displayXl.copyWith(fontSize: 46.4, color: C.ivory),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Reveal(
-                  delay: 0.6,
-                  dy: 14,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 320),
-                    child: Text(
-                      tr('welcome.subtitle'),
-                      style: T.body.copyWith(
-                        fontSize: 17,
-                        color: C.ivory.withValues(alpha: 0.85),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Reveal(
-                  delay: 0.75,
-                  dy: 0,
-                  child: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 12,
-                    runSpacing: 8,
-                    children: [
-                      SizedBox(
-                        width: 32.0 + (avatars.length - 1) * 22,
-                        height: 32,
-                        child: Stack(
-                          children: [
-                            for (final (i, t) in avatars.indexed)
-                              Positioned(
-                                left: i * 22.0,
-                                child: Avatar(
-                                  t.avatar ?? 'onb-age-f-50',
-                                  size: 32,
-                                  ring: C.forest,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 220),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Stars(size: 13),
-                            const SizedBox(height: 2),
-                            Text(
-                              tr('welcome.makeSpaceForYourself'),
-                              softWrap: true,
-                              style: T.tiny.copyWith(
-                                height: 1.25,
-                                fontWeight: FontWeight.w500,
-                                color: C.ivory.withValues(alpha: 0.75),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    style: T.displayXl.copyWith(fontSize: 34, color: C.ivory),
                   ),
                 ),
                 const SizedBox(height: 28),
@@ -297,14 +173,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   dy: 20,
                   child: Column(
                     children: [
-                      Shimmer(
-                        color: C.jadeSoft,
-                        child: EnsoButton(
+                      EnsoButton(
                           label: tr('welcome.ctaLabel'),
                           variant: BtnVariant.ivory,
                           trailing: LucideIcons.arrowRight,
                           onTap: () => context.go('/onboarding'),
-                        ),
                       ),
                       const SizedBox(height: 10),
                       Text(

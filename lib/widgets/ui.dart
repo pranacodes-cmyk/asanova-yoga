@@ -215,18 +215,14 @@ class EImage extends StatelessWidget {
       width: double.infinity,
       height: double.infinity,
       gaplessPlayback: true,
+      filterQuality: FilterQuality.high,
       frameBuilder: (context, child, frame, sync) {
         if (sync) return child;
         return AnimatedOpacity(
           opacity: frame == null ? 0 : 1,
           duration: const Duration(milliseconds: 700),
           curve: Curves.easeOut,
-          child: AnimatedScale(
-            scale: frame == null ? 1.03 : 1,
-            duration: const Duration(milliseconds: 900),
-            curve: kEase,
-            child: child,
-          ),
+          child: child,
         );
       },
       errorBuilder: (_, _, _) => Container(color: C.sand),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 
 import '../i18n/i18n.dart';
 import '../data/content.dart';
@@ -37,12 +38,23 @@ class _LessonPrepareState extends State<LessonPrepare> {
   bool _failed = false, _cancelled = false;
   int _total = 0;
   BreathCycle? _cycle;
+  // looping cinematic behind the preparation screen (bundled welcome film, muted)
+  final VideoPlayerController _film = VideoPlayerController.asset('assets/video/welcome-clear.mp4',
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true));
+  bool _filmOn = false;
 
   bool get _ready => _missing.isEmpty;
 
   @override
   void initState() {
     super.initState();
+    _film.initialize().then((_) async {
+      if (!mounted) return;
+      await _film.setVolume(0);
+      await _film.setLooping(true);
+      await _film.play();
+      if (mounted) setState(() => _filmOn = true);
+    }).catchError((_) {});
     if (_ready) return;
     _cycle = BreathCycle(
       const [4, 1, 5, 1],
@@ -115,6 +127,7 @@ class _LessonPrepareState extends State<LessonPrepare> {
   void dispose() {
     _cancelled = true;
     _cycle?.dispose();
+    _film.dispose();
     if (!_ready) {
       Voice.stop();
       Ambient.stop();
@@ -128,73 +141,73 @@ class _LessonPrepareState extends State<LessonPrepare> {
     final pct = downloadPercent(_done, _total);
     final cycle = _cycle;
     return EnsoScaffold(
-      background: C.forest,
-      lightIcons: true,
-      body: LayoutBuilder(builder: (context, box) {
+      background: C.cream,
+      body: Stack(children: [
+        Positioned.fill(top: MediaQuery.sizeOf(context).height * 0.3, child: IgnorePointer(child: Stack(fit: StackFit.expand, children: [
+          if (_filmOn) FittedBox(fit: BoxFit.cover, alignment: Alignment.topCenter,
+            child: SizedBox(width: _film.value.size.width, height: _film.value.size.height, child: VideoPlayer(_film)))
+          else EImage(img('hero-welcome'), fit: BoxFit.cover, alignment: Alignment.topCenter),
+          DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+            begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            colors: [C.cream, C.cream.withValues(alpha: 0.1), C.cream.withValues(alpha: 0.1), C.cream, C.cream],
+            stops: const [0, 0.18, 0.55, 0.72, 1]))),
+        ]))),
+        LayoutBuilder(builder: (context, box) {
         final compact = box.maxHeight < 660;
         return SingleChildScrollView(
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: box.maxHeight),
           child: Column(children: [
-            SizedBox(
-              height: math.min(390.0, box.maxHeight * (compact ? 0.40 : 0.46)),
-              child: Stack(fit: StackFit.expand, children: [
-                EImage(img('tutor-seat')),
-                DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
-                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                  colors: [C.forest.withValues(alpha: 0.12), C.forest.withValues(alpha: 0.05), C.forest],
-                  stops: const [0, 0.55, 1],
-                ))),
-                Positioned(top: topInset(context) + 8, left: 16, right: 16,
-                  child: Row(children: [
-                    CircleBtn(icon: LucideIcons.x, tone: Tone.dark,
-                      label: tr('prepare.cancel'), onTap: _close),
-                    const Spacer(),
-                    Text(tr('welcome.brandName'), style: T.label.c(C.ivory)),
-                    const Spacer(),
-                    CircleBtn(icon: app.audio.music ? LucideIcons.music2 : LucideIcons.volumeX,
-                      tone: Tone.dark, label: tr(app.audio.music ? 'player.musicOn' : 'player.musicOff'),
-                      onTap: () {
-                        app.setAudio((a) => a.music = !a.music);
-                        _syncMusic();
-                        setState(() {});
-                      }),
-                  ])),
-              ]),
-            ),
-            Padding(padding: EdgeInsets.fromLTRB(28, 8, 28, bottomInset(context) + (compact ? 16 : 24)),
-              child: Column(children: [
+            Padding(padding: EdgeInsets.fromLTRB(16, topInset(context) + 8, 16, 0),
+              child: Row(children: [
+                CircleBtn(icon: LucideIcons.x, label: tr('prepare.cancel'), onTap: _close),
+                const Spacer(),
+                Text(tr('welcome.brandName'), style: T.label.c(C.ink)),
+                const Spacer(),
+                CircleBtn(icon: app.audio.music ? LucideIcons.music2 : LucideIcons.volumeX,
+                  label: tr(app.audio.music ? 'player.musicOn' : 'player.musicOff'),
+                  onTap: () {
+                    app.setAudio((a) => a.music = !a.music);
+                    _syncMusic();
+                    setState(() {});
+                  }),
+              ])),
+            Padding(padding: EdgeInsets.fromLTRB(24, compact ? 16 : 28, 24, 0),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(tr(_failed ? 'prepare.failedTitle' : 'prepare.title'),
-                  textAlign: TextAlign.center, style: T.displayMd.c(C.ivory)),
-                const SizedBox(height: 12),
+                  style: T.displayMd.copyWith(fontSize: 30, height: 1.15, color: C.ink)),
+                const SizedBox(height: 10),
                 Text(tr(_failed ? 'prepare.failedBody' : 'prepare.subtitle'),
-                  textAlign: TextAlign.center, style: T.bodySm.c(C.ivory.withValues(alpha: 0.65))),
-                SizedBox(height: compact ? 16 : 24),
-                SizedBox(width: compact ? 92 : 112, height: compact ? 92 : 112, child: Stack(alignment: Alignment.center, children: [
-                  SizedBox.expand(child: CircularProgressIndicator(
-                    value: _failed ? 0 : pct / 100, strokeWidth: 2,
-                    backgroundColor: C.ivory.withValues(alpha: 0.12), color: C.sage)),
-                  if (_failed) const Icon(LucideIcons.wifiOff, color: C.sage, size: 32)
-                  else Text(tr('prepare.progress', {'pct': pct}),
-                    style: T.displayMd.copyWith(fontSize: 30, color: C.ivory).tab),
-                ])),
-                SizedBox(height: compact ? 12 : 18),
+                  style: T.bodySm.c(C.muted)),
+              ])),
+            SizedBox(height: compact ? 12 : 20),
+            SizedBox(height: math.min(330.0, box.maxHeight * (compact ? 0.32 : 0.38))),
+            Padding(padding: EdgeInsets.fromLTRB(24, 16, 24, bottomInset(context) + 20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Icon(_failed ? LucideIcons.wifiOff : LucideIcons.download, color: C.jade, size: 22),
+                  Text(tr('prepare.progress', {'pct': pct}),
+                    style: T.displayMd.copyWith(fontSize: 36, color: C.ink).tab),
+                ]),
+                const SizedBox(height: 12),
+                LinearProgressIndicator(value: pct / 100, minHeight: 4,
+                  backgroundColor: C.sandDeep, color: C.jade),
+                SizedBox(height: compact ? 20 : 28),
                 if (!_failed && cycle != null) ListenableBuilder(listenable: cycle,
-                  builder: (_, _) => Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text(cycle.label, style: T.serifAccent.copyWith(fontSize: 22, color: C.sage)),
+                  builder: (_, _) => Row(children: [
+                    const Icon(LucideIcons.wind, color: C.sage, size: 22),
                     const SizedBox(width: 12),
-                    Text('${cycle.left}', style: T.label.c(C.ivory.withValues(alpha: 0.65)).tab),
+                    Expanded(child: Text(cycle.label, style: T.serifAccent.copyWith(fontSize: 22, color: C.ink))),
+                    Text('${cycle.left}', style: T.label.c(C.muted).tab),
                   ])),
                 if (_failed) EnsoButton(label: tr('prepare.retry'), icon: LucideIcons.rotateCw,
-                  variant: BtnVariant.ivory, onTap: _run),
-                SizedBox(height: compact ? 16 : 24),
-                LinearProgressIndicator(value: pct / 100, minHeight: 2,
-                  backgroundColor: C.ivory.withValues(alpha: 0.12), color: C.sage),
+                  onTap: _run),
               ])),
           ]),
         ),
         );
       }),
+      ]),
     );
   }
 }

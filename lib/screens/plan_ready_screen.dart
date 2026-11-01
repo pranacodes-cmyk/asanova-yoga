@@ -12,6 +12,8 @@ import '../logic/logic.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
+import '../services/audio_service.dart';
+import '../widgets/confetti.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/ui.dart';
 import '../i18n/i18n.dart';
@@ -33,6 +35,7 @@ class _PlanReadyScreenState extends State<PlanReadyScreen>
     with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
   double progress = 0;
+  int _pulse = 0; // last 10% step that gave a gentle haptic tick
 
   @override
   void initState() {
@@ -40,6 +43,12 @@ class _PlanReadyScreenState extends State<PlanReadyScreen>
     _ticker = createTicker((elapsed) {
       final p = (elapsed.inMilliseconds / 4800 * 100).clamp(0.0, 100.0);
       setState(() => progress = p);
+      final step = (p / 10).floor();
+      if (step > _pulse) {
+        _pulse = step;
+        // gentle tick as the ring fills, a firmer one when the plan is ready
+        step >= 10 ? Haptics.medium() : Haptics.select();
+      }
       if (p >= 100) _ticker.stop();
     })..start();
   }
@@ -70,7 +79,10 @@ class _PlanReadyScreenState extends State<PlanReadyScreen>
             ),
           ),
           child: done
-              ? const _Result(key: ValueKey('res'))
+              ? const Stack(key: ValueKey('res'), children: [
+                  _Result(),
+                  Positioned(top: 0, left: 0, right: 0, child: Confetti()),
+                ])
               : _Generating(key: const ValueKey('gen'), progress: progress),
         ),
       ),
@@ -84,7 +96,7 @@ class _Generating extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final list = Content.i.testimonials;
-    final t = list[math.max(0, (progress / 26).floor()) % list.length];
+    final t = list.first;
     final active = math.min(_checklist.length - 1, (progress / 25).floor());
     return Stack(
       children: [
@@ -532,12 +544,12 @@ class _Result extends StatelessWidget {
                   borderRadius: BorderRadius.circular(30),
                   child: Column(
                     children: [
-                      SizedBox(
-                        height: 176,
+                      AspectRatio(
+                        aspectRatio: 1,
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            EImage(img(plan.image)),
+                            EImage(img(plan.image), fit: BoxFit.contain),
                             DecoratedBox(
                               decoration: BoxDecoration(gradient: G.scrim),
                             ),
@@ -565,32 +577,19 @@ class _Result extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                            Positioned(
-                              left: 20,
-                              right: 20,
-                              bottom: 16,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Eyebrow(
-                                    tr('courses.yourCourse'),
-                                    color: C.ivory.withValues(alpha: 0.75),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    plan.title,
-                                    style: T.displayMd.c(C.ivory),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    plan.subtitle,
-                                    style: T.caption.c(
-                                      C.ivory.withValues(alpha: 0.8),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Eyebrow(tr('courses.yourCourse'), color: C.jade),
+                            const SizedBox(height: 6),
+                            Text(plan.title, style: T.displayMd),
+                            const SizedBox(height: 4),
+                            Text(plan.subtitle, style: T.caption.c(C.muted)),
                           ],
                         ),
                       ),
