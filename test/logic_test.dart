@@ -620,8 +620,8 @@ void main() {
     setUp(() => day1 = resolveSession('plan:yoga-journey-30:1')!);
     test('a first course day downloads the tutor welcome first and her celebration', () {
       final paths = sessionMediaPaths(day1, fresh, Content.i.voice);
-      expect(paths.first, 'video/yc-tutor-welcome.mp4');
-      expect(paths, contains('video/yc-tutor-congrats.mp4'));
+      expect(paths.first, filmPath(kTutorWelcomeFilm));
+      expect(paths, contains(filmPath(kTutorCongratsFilm)));
       expect(paths.toSet().length, paths.length);
     });
     test('a flow day downloads its continuous round films, never the old per-breath clips', () {
@@ -651,7 +651,8 @@ void main() {
           const JourneyOptions(known: {}, demos: true, welcome: false),
           Content.i.voice,
         );
-        expect(paths, isNot(contains('video/yc-tutor-welcome.mp4')));
+        // welcome and celebration share one film, so it stays once (as the celebration)
+        expect(paths.where((p) => p == filmPath(kTutorCongratsFilm)).length, 1);
         for (final p in paths.where((x) => x.startsWith('voice/'))) {
           expect(
             Content.i.voice.contains(p.substring(6, p.length - 4)),
