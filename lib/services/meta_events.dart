@@ -42,7 +42,6 @@ class MetaEvents {
         _enabled = false;
         await fb.setAutoLogAppEventsEnabled(false);
         await fb.setAdvertiserIdCollectionEnabled(false);
-        if (Platform.isIOS) await fb.setAdvertiserTracking(enabled: false);
         return;
       }
       var adIdAllowed = true;
@@ -51,10 +50,9 @@ class MetaEvents {
         // Until the person has answered the iOS prompt, nothing is sent at all.
         if (att == TrackingStatus.notDetermined) return;
         adIdAllowed = att == TrackingStatus.authorized;
-        await fb.setAdvertiserTracking(enabled: adIdAllowed);
       }
       await fb.setAdvertiserIdCollectionEnabled(adIdAllowed);
-      // Auto-logging stays off so the SDK never logs store purchases itself (the server sends
+      // Auto-logging stays off so the SDK never logs store purchases itself (RevenueCat sends
       // them); activateApp below reports the install/open Meta attributes ads with.
       await fb.setAutoLogAppEventsEnabled(false);
       final firstTime = !_enabled;
