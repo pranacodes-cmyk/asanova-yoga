@@ -214,7 +214,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'step_index': index,
       'step_id': leaving.id,
       'section': leaving.section,
-      if (answer != null) 'answer': answer,
+      'answer': ?answer,
     });
     if (index < steps.length - 1) {
       setState(() {

@@ -23,16 +23,16 @@ class AnalyticsService {
       ..captureApplicationLifecycleEvents = true
       ..debug = false;
     await Posthog().setup(config);
-    if (!enabled) await Posthog().disable();
+    if (!enabled) await Posthog().optOut();
   }
 
   /// Profile → Privacy → Usage statistics switch.
   static Future<void> setEnabled(bool on) async {
     if (!_ready) return;
     if (on) {
-      await Posthog().enable();
+      await Posthog().optIn();
     } else {
-      await Posthog().disable();
+      await Posthog().optOut();
     }
   }
 
