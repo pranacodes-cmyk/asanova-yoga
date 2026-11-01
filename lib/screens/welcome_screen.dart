@@ -34,8 +34,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         .then((_) async {
           if (!mounted) return;
           await v.setVolume(0);
-          // cinematic opener plays once and holds its last, eyes-closed frame
-          await v.setLooping(false);
+          // seamless crossfaded nature loop, same as the web prototype
+          await v.setLooping(true);
           await v.play();
           if (mounted) setState(() => _playing = true);
         })
@@ -54,7 +54,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   Widget build(BuildContext context) {
     final top = topInset(context);
     final bottom = bottomInset(context);
-    const focus = Alignment.topCenter;
+    const focus = Alignment.center;
     final v = _video;
     return EnsoScaffold(
       background: C.forest,
