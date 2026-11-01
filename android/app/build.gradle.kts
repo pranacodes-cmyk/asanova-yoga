@@ -13,9 +13,23 @@ val keystoreProperties = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
+// Meta / Facebook SDK identifiers for Asanova's own Meta app (also in lib/services/meta_events.dart
+// via --dart-define and ios/Runner/Info.plist). From -P gradle properties or env (CI).
+fun envOrProp(name: String, default: String): String =
+    (project.findProperty(name) as String?)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(name)?.takeIf { it.isNotBlank() }
+        ?: default
+val metaAppId = envOrProp("META_APP_ID", "1586052573206218")
+val metaClientToken = envOrProp("META_CLIENT_TOKEN", "fbce20a08f2b71933eb5c7cf244e29eb")
+
 android {
     namespace = "com.asanova.yoga"
     compileSdk = flutter.compileSdkVersion
+
+    // AGP 9 turns generated resource values off by default; the Meta SDK ids below need them.
+    buildFeatures {
+        resValues = true
+    }
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -32,6 +46,10 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+
+        resValue("string", "facebook_app_id", metaAppId)
+        resValue("string", "facebook_client_token", metaClientToken)
+        resValue("string", "fb_login_protocol_scheme", "fb$metaAppId")
     }
 
     signingConfigs {
@@ -62,6 +80,10 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Lets the Meta SDK read the Play install referrer, so ad installs attribute even without an ad ID.
+    implementation("com.android.installreferrer:installreferrer:2.2")
+    // Lets the Meta SDK and RevenueCat read the Google advertising ID (else Meta matches far fewer installs).
+    implementation("com.google.android.gms:play-services-ads-identifier:18.2.0")
 }
 
 flutter {

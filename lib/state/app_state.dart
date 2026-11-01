@@ -496,7 +496,8 @@ class AppState extends ChangeNotifier {
     weightLog = [];
     downloads = [];
     // The privacy answer is a consent record and the language a device preference, not practice
-    // data, so a reset keeps both.
+    // data, so a reset keeps both. Usage statistics restart under a fresh anonymous id.
+    AnalyticsService.reset();
     _commit();
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
 
+import 'meta_events.dart';
+
 /// Anonymous usage analytics (PostHog, US cloud).
 ///
 /// Privacy rules (mirrors web `src/lib/analytics.ts`):
@@ -26,8 +28,9 @@ class AnalyticsService {
     if (!enabled) await Posthog().optOut();
   }
 
-  /// Profile → Privacy → Usage statistics switch.
+  /// Profile → Privacy → Usage statistics switch — also switches Meta ad measurement.
   static Future<void> setEnabled(bool on) async {
+    await MetaEvents.configure(enabled: on);
     if (!_ready) return;
     if (on) {
       await Posthog().optIn();
@@ -48,8 +51,25 @@ class AnalyticsService {
   }
 
   static void event(String name, [Map<String, Object>? properties]) {
+    MetaEvents.fromAnalytics(name, properties);
     if (!_ready) return;
     Posthog().capture(eventName: name, properties: properties);
+  }
+
+  /// Anonymous PostHog id, handed to RevenueCat so billing events join the same person.
+  static Future<String?> distinctId() async {
+    if (!_ready) return null;
+    try {
+      return await Posthog().getDistinctId();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Profile → Reset all data: start a fresh anonymous identity.
+  static Future<void> reset() async {
+    if (!_ready) return;
+    await Posthog().reset();
   }
 }
 

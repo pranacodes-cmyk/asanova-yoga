@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
 import '../i18n/i18n.dart';
+import 'analytics_service.dart';
+import 'meta_events.dart';
 
 /// Purchase layer: RevenueCat on Android and iOS, with a demo fallback so previews, tests and
 /// builds without store access still work. Mirrors src/lib/purchases.ts (same plan ids).
@@ -159,6 +161,25 @@ class PurchaseService {
     } catch (e) {
       debugPrint('Asanova purchases: $e');
       _ready = false;
+    }
+  }
+
+  /// Links RevenueCat to PostHog + Meta so the server webhook can report trials and purchases on
+  /// the same anonymous person (`$posthogUserId`) and attribute them to Meta ads
+  /// (`$fbAnonId`, device ad ID). `usage_statistics` = off makes the webhook skip PostHog and Meta entirely.
+  /// Call again after the Usage statistics switch or the iOS tracking answer changes.
+  static Future<void> linkAttribution({required bool enabled}) async {
+    if (!_ready) return;
+    try {
+      await Purchases.setAttributes({'usage_statistics': enabled ? 'on' : 'off'});
+      if (!enabled) return;
+      await Purchases.collectDeviceIdentifiers();
+      final phId = await AnalyticsService.distinctId();
+      if (phId != null) await Purchases.setAttributes({r'$posthogUserId': phId});
+      final fbId = await MetaEvents.anonymousId();
+      if (fbId != null) await Purchases.setFBAnonymousID(fbId);
+    } catch (e) {
+      debugPrint('Asanova purchases: linkAttribution $e');
     }
   }
 

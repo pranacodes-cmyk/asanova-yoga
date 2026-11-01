@@ -657,7 +657,9 @@ class ProfileScreen extends StatelessWidget {
                               activeTrackColor: C.jade,
                               onChanged: (v) {
                                 app.setAnalyticsEnabled(v);
-                                AnalyticsService.setEnabled(v);
+                                AnalyticsService.setEnabled(v).then(
+                                  (_) => PurchaseService.linkAttribution(enabled: v),
+                                );
                               },
                             ),
                           ],

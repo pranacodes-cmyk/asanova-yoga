@@ -14,6 +14,7 @@ import 'logic/lesson_media.dart' show voicePath;
 import 'logic/logic.dart' show bundlesVoice, resolveLanguage, supportedLanguages;
 import 'router.dart';
 import 'services/analytics_service.dart';
+import 'services/meta_events.dart';
 import 'services/audio_service.dart';
 import 'services/notification_service.dart';
 import 'services/purchase_service.dart';
@@ -36,6 +37,10 @@ Future<void> main() async {
   final lang = resolveLanguage(app.language, deviceLanguageTags());
   if (lang != 'en') await Content.load(lang);
   await AnalyticsService.init(enabled: app.privacy.analytics);
+  // Meta install/open must fire on the very first session, even if the person quits during
+  // onboarding (iOS waits for the tracking answer — see _EnsoAppState.initState).
+  await MetaEvents.configure(enabled: app.privacy.analytics);
+  unawaited(PurchaseService.linkAttribution(enabled: app.privacy.analytics));
   AnalyticsService.register({
     'app_language': lang,
     'premium': app.premium.active,
@@ -107,6 +112,15 @@ class _EnsoAppState extends State<EnsoApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     widget.app.addListener(_syncHaptics);
     widget.app.addListener(_syncLanguage);
+    WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_askTracking()));
+  }
+
+  /// iOS: ask App Tracking Transparency once, then apply the answer to Meta + RevenueCat.
+  Future<void> _askTracking() async {
+    final on = widget.app.privacy.analytics;
+    if (!on) return;
+    await MetaEvents.askTrackingPermission(enabled: on);
+    await PurchaseService.linkAttribution(enabled: on);
   }
 
   void _syncHaptics() => Haptics.enabled = widget.app.audio.haptics;
