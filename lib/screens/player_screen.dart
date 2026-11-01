@@ -618,7 +618,7 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
     if (phase == _Phase.welcome) {
       film = DemoFilm.keyed(
         key: const ValueKey('welcome'),
-        film: kTutorWelcomeFilm,
+        film: courseFilms(plan).welcome,
         poster: 'tutor-seat',
         playing: running,
       );
@@ -878,7 +878,7 @@ class _GuidedPlayerState extends State<_GuidedPlayer> {
         background: C.forest,
         lightIcons: true,
         body: phase == _Phase.welcome ? CourseCinematic(
-          film: kTutorWelcomeFilm, eyebrow: tr('journey.welcomeEyebrow'),
+          film: courseFilms(plan).welcome, eyebrow: tr('journey.welcomeEyebrow'),
           title: _title, caption: caption, running: running,
           onToggle: _togglePlay, onContinue: _skipNext, onClose: _exit,
         ) : Column(

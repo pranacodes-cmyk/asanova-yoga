@@ -21,7 +21,7 @@ class CourseCinematic extends StatelessWidget {
   final VoidCallback? onClose;
   @override
   Widget build(BuildContext context) => Stack(fit: StackFit.expand, children: [
-    DemoFilm.keyed(film: film, poster: kTutorFilmPoster, playing: running,
+    DemoFilm.keyed(film: film, poster: filmPoster(film), playing: running,
       loop: true, portrait: true, contain: true, alignment: Alignment.topCenter),
     const DecoratedBox(decoration: BoxDecoration(gradient: G.courseCinematic)),
     Positioned(top: topInset(context) + 8, left: 16, right: 16,

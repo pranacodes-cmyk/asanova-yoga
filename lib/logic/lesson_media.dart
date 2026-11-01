@@ -24,6 +24,24 @@ const kTutorWelcomeStopSeconds = double.infinity;
 const kTutorFilmPoster = 'yc-yoga-flow-v2-poster';
 bool filmPlaybackComplete(String? film, double seconds) => false;
 
+/// Course cinematics (`yc-…`) live only on the media server, downloaded with the lesson; never bundled.
+bool isCourseFilm(String key) => key.startsWith('yc-');
+
+/// The films a course plays (web `courseFilms`): its own welcome, its end-of-practice / finale
+/// film and its Today preview loop, or the shared tutor film for courses without their own.
+({String welcome, String finale, String? preview}) courseFilms(Plan? plan) {
+  final f = plan?.films;
+  return (
+    welcome: f?.welcome ?? kTutorWelcomeFilm,
+    finale: f?.finale ?? kTutorCongratsFilm,
+    preview: f?.preview,
+  );
+}
+
+/// The still a course film shows until it plays: its own first frame, or the shared tutor poster.
+String filmPoster(String film) =>
+    film == kTutorWelcomeFilm || film == kTutorCongratsFilm ? kTutorFilmPoster : '$film-poster';
+
 String filmPath(String film) => 'video/$film.mp4';
 String voicePath(String key) => 'voice/$key.m4a';
 
@@ -176,7 +194,7 @@ List<String> sessionMediaPaths(Session s, JourneyOptions o, Set<String> clips) {
   }
 
   final plan = s.planId == null ? null : c.plan(s.planId!);
-  if (o.welcome && plan != null) add(filmPath(kTutorWelcomeFilm));
+  if (o.welcome && plan != null) add(filmPath(courseFilms(plan).welcome));
   final items = s.items;
   for (var i = 0; i < items.length; i++) {
     final it = items[i];
@@ -202,7 +220,7 @@ List<String> sessionMediaPaths(Session s, JourneyOptions o, Set<String> clips) {
     if (ex.entry != null) add(filmPath(ex.entry!));
     if (ex.demo != null) add(filmPath(ex.demo!));
   }
-  add(filmPath(kTutorCongratsFilm));
+  add(filmPath(courseFilms(plan).finale));
   for (final line in sessionLines(s, o)) {
     final k = voiceKey(line);
     if (clips.contains(k)) add(voicePath(k));

@@ -25,6 +25,27 @@ class C {
 
   /// Studio wall colour of the demo films (web `--studio`).
   static const studio = Color(0xFFD8CFC1);
+
+  /// The seven chakra centres of the Chakra Awakening map (web `--chakra-*`), never purple/indigo.
+  static const chakraRoot = Color(0xFFB5452F);
+  static const chakraSacral = Color(0xFFD9793A);
+  static const chakraSolar = Color(0xFFD9A63C);
+  static const chakraHeart = Color(0xFF6F9A6B);
+  static const chakraThroat = Color(0xFF4E8A9C);
+  static const chakraBrow = Color(0xFF3F5A7A);
+  static const chakraCrown = Color(0xFFE8D7A8);
+
+  /// Colour of a chapter's chakra key (`root` … `crown`), or null.
+  static Color? chakra(String? key) => switch (key) {
+    'root' => chakraRoot,
+    'sacral' => chakraSacral,
+    'solar' => chakraSolar,
+    'heart' => chakraHeart,
+    'throat' => chakraThroat,
+    'brow' => chakraBrow,
+    'crown' => chakraCrown,
+    _ => null,
+  };
 }
 
 class G {

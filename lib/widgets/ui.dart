@@ -895,11 +895,15 @@ class HeroHeader extends StatelessWidget {
     required this.height,
     required this.child,
     this.topBar,
+    this.background,
   });
   final String image;
   final double height;
   final Widget child;
   final Widget? topBar;
+
+  /// Replaces the photo (e.g. a course's looping preview film); the photo shows otherwise.
+  final Widget? background;
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
@@ -908,7 +912,10 @@ class HeroHeader extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          ClipRect(child: KenBurns(child: EImage(image))),
+          if (background != null)
+            ColoredBox(color: C.forest, child: background!)
+          else
+            ClipRect(child: KenBurns(child: EImage(image))),
           DecoratedBox(decoration: BoxDecoration(gradient: G.heroTopBottom)),
           if (topBar != null)
             Positioned(left: 20, right: 20, top: top + 10, child: topBar!),

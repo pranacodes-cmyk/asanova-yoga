@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
+import '../data/content.dart';
 import '../data/models.dart';
 import '../i18n/i18n.dart';
 import '../logic/coach.dart';
@@ -26,11 +27,15 @@ class TutorCelebration extends StatefulWidget {
     required this.completion,
     required this.lines,
     this.onContinue,
+    this.film = kTutorCongratsFilm,
   });
   final String title;
   final Completion completion;
   final List<String> lines;
   final VoidCallback? onContinue;
+
+  /// The course's own end-of-practice film (`courseFilms(plan).finale`), else the shared tutor film.
+  final String film;
   @override
   State<TutorCelebration> createState() => _TutorCelebrationState();
 }
@@ -78,7 +83,7 @@ class _TutorCelebrationState extends State<TutorCelebration> {
     };
     if (widget.onContinue != null) {
       return CourseCinematic(
-      film: kTutorCongratsFilm, eyebrow: eyebrow, title: widget.title,
+      film: widget.film, eyebrow: eyebrow, title: widget.title,
       caption: _caption, running: _running,
       onToggle: () { setState(() => _running = !_running); if (!_running) { _narr?.pause(); } else if (_narr == null) { _play(); } else { _narr?.resume(); } },
       onContinue: () { _narr?.dispose(); widget.onContinue?.call(); },
@@ -98,11 +103,12 @@ class _TutorCelebrationState extends State<TutorCelebration> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      const DemoFilm.keyed(
-                        film: kTutorCongratsFilm,
+                      DemoFilm.keyed(
+                        film: widget.film,
                         portrait: true,
                         loop: false,
-                        poster: 'tutor-seat',
+                        poster: filmPoster(widget.film),
+                        alignment: const Alignment(0, -0.6),
                       ),
                       Positioned(
                         right: 10,
@@ -212,6 +218,79 @@ class LearnedCard extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// The meditation a finished course day closes with (web `SittingCard`): the centre's own sitting.
+class SittingCard extends StatelessWidget {
+  const SittingCard({super.key, required this.meditation});
+  final Meditation meditation;
+  @override
+  Widget build(BuildContext context) {
+    final premium = context.watch<AppState>().premium.active;
+    final locked = isMeditationLocked(meditation.id, premium);
+    return Pressable(
+      onTap: () => context.push(
+        locked ? '/paywall?from=meditation' : '/meditation/${meditation.id}',
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: C.ivory.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: C.ivory.withValues(alpha: 0.12)),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: SizedBox(
+                width: 68,
+                height: 68,
+                child: EImage(img(meditation.image)),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.flower2, size: 13, color: C.gold),
+                      const SizedBox(width: 6),
+                      Flexible(child: Eyebrow(tr('complete.todaysSitting'), color: C.gold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    meditation.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: T.body.copyWith(fontWeight: FontWeight.w600, color: C.ivory),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    tr('complete.todaysSittingMeta', {'n': meditation.minutes}),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: T.caption.copyWith(color: C.ivory.withValues(alpha: 0.65)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(color: C.ivory, shape: BoxShape.circle),
+              child: Icon(locked ? LucideIcons.lock : LucideIcons.play, size: locked ? 16 : 18, color: C.ink),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Tomorrow's lesson under a finished course day (web `TomorrowCard`).
@@ -409,11 +488,12 @@ class _TutorWelcomeState extends State<_TutorWelcome> {
             aspectRatio: 1,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(28),
-              child: const DemoFilm.keyed(
-                film: kTutorWelcomeFilm,
+              child: DemoFilm.keyed(
+                film: courseFilms(widget.plan).welcome,
                 portrait: true,
                 loop: false,
-                poster: 'tutor-seat',
+                poster: filmPoster(courseFilms(widget.plan).welcome),
+                alignment: const Alignment(0, -0.6),
               ),
             ),
           ),

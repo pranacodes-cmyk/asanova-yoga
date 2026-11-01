@@ -17,7 +17,7 @@ import '../widgets/scaffold.dart';
 import '../widgets/toast.dart';
 import '../widgets/tutor_celebration.dart';
 import '../widgets/ui.dart';
-import '../logic/lesson_media.dart' show completionLines;
+import '../logic/lesson_media.dart' show completionLines, courseFilms;
 import '../i18n/i18n.dart';
 
 List<(int, String, String)> get _feelings => [
@@ -94,12 +94,17 @@ class _CompleteScreenState extends State<CompleteScreen> {
           const [],
     );
 
+    // the centre's own meditation a chakra day closes with
+    final sittingId = dayMeditation(coursePlan, entry.day);
+    final sitting = sittingId == null ? null : Content.i.meditation(sittingId);
+
     if (!isMed && !_cinematicDone) {
       return EnsoScaffold(
       background: C.forest, lightIcons: true,
       body: Stack(fit: StackFit.expand, children: [
         TutorCelebration(title: entry.title, completion: completion,
           lines: completionLines(entry.planId, entry.day, doneBefore),
+          film: courseFilms(coursePlan).finale,
           onContinue: () => setState(() => _cinematicDone = true)),
         const IgnorePointer(child: Confetti()),
       ]),
@@ -243,6 +248,10 @@ class _CompleteScreenState extends State<CompleteScreen> {
                   if (!isMed && learned.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Reveal(delay: 0.62, child: LearnedCard(names: learned)),
+                  ],
+                  if (!isMed && sitting != null) ...[
+                    const SizedBox(height: 12),
+                    Reveal(delay: 0.64, child: SittingCard(meditation: sitting)),
                   ],
                   if (!isMed &&
                       completion.kind == CompletionKind.day &&

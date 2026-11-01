@@ -315,6 +315,33 @@ List<String> learnNames(List<String> learn) {
 PlanChapter? chapterOf(Plan plan, int day) =>
     plan.chapters.where((c) => day >= c.from && day <= c.to).firstOrNull;
 
+/// How far a course stage is (the chakra map on the course page; web `ChapterState`).
+enum ChapterState { done, current, upcoming }
+
+/// The state of each stage of a course, in order (web `chapterStates`).
+List<ChapterState> chapterStates(Plan plan, List<int> completed) {
+  final done = completed.toSet();
+  final next = nextPlanDay(plan.days.length, completed);
+  return [
+    for (final c in plan.chapters)
+      if ([for (var d = c.from; d <= c.to; d++) d].every(done.contains))
+        ChapterState.done
+      else if (next >= c.from && next <= c.to)
+        ChapterState.current
+      else
+        ChapterState.upcoming,
+  ];
+}
+
+/// The meditation a course day closes with on its finish screen, or null (web `dayMeditation`).
+String? dayMeditation(Plan? plan, int? day) =>
+    plan?.days.where((d) => d.day == day).firstOrNull?.meditation;
+
+/// Today shows the signature experience as its cinematic card unless it already leads Today as
+/// the active plan, or every one of its days is finished (web `showsFeature`).
+bool showsFeature(String? featureId, String activePlanId, int completedDays, int totalDays) =>
+    featureId != null && featureId != activePlanId && completedDays < totalDays;
+
 /// The free starter day Today features (of the first [totalDays] free days), or null once every
 /// one is finished.
 int? freeStarterDay(int totalDays, List<int> completed) {
@@ -1065,7 +1092,8 @@ bool breathCueDue(List<int> pattern, int sec) {
 // ------------------------------------------------------------ over-the-air content
 
 /// Content format both clients understand; a server update with another schema is ignored.
-const int kContentSchema = 2;
+/// 3: plans gained films/feature, chapters a chakra and days a meditation (Chakra Awakening).
+const int kContentSchema = 3;
 
 typedef OtaFile = ({String hash, int bytes});
 typedef OtaCached = ({int schema, int seq, String hash});

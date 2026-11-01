@@ -208,6 +208,9 @@ class PlanDay {
 
   /// What is new in the course today: the first exercise id of each new pose, or `flow:<id>`.
   final List<String> learn;
+
+  /// Meditation id offered on the finish screen as the day's own sitting, or null.
+  final String? meditation;
   final List<SessionItem> items;
   final int kcal;
   PlanDay.fromJson(Map<String, dynamic> j)
@@ -217,6 +220,7 @@ class PlanDay {
       intro = j['intro'] as String? ?? '',
       tease = j['tease'] as String?,
       learn = _strings(j['learn']),
+      meditation = j['meditation'] as String?,
       focus = _strings(j['focus']),
       items = _items(j['items']),
       kcal = (j['kcal'] as num).toInt();
@@ -226,11 +230,27 @@ class PlanDay {
 class PlanChapter {
   final String title, summary;
   final int from, to;
+
+  /// Chakra key (`root` … `crown`) of a Chakra Awakening stage, coloured by `C.chakra`; null elsewhere.
+  final String? chakra;
   PlanChapter.fromJson(Map<String, dynamic> j)
     : title = j['title'],
       summary = j['summary'] as String? ?? '',
       from = (j['from'] as num).toInt(),
-      to = (j['to'] as num).toInt();
+      to = (j['to'] as num).toInt(),
+      chakra = j['chakra'] as String?;
+}
+
+/// A course's own cinematic films on the media server (poster image `<key>-poster`; web `PlanFilms`).
+class PlanFilms {
+  final String welcome, finale;
+
+  /// Short looping preview for the Today feature card and the course page.
+  final String? preview;
+  PlanFilms.fromJson(Map<String, dynamic> j)
+    : welcome = j['welcome'],
+      finale = j['finale'],
+      preview = j['preview'] as String?;
 }
 
 class Plan {
@@ -258,6 +278,12 @@ class Plan {
 
   /// Stages of the course, in order (empty for courses without chapters).
   final List<PlanChapter> chapters;
+
+  /// The course's own welcome / finale / preview films, or null for the shared tutor film.
+  final PlanFilms? films;
+
+  /// The signature experience featured as the cinematic card on Today.
+  final bool feature;
   final List<PlanDay> days;
   bool get isSingleSession => days.length == 1;
   Plan.fromJson(Map<String, dynamic> j)
@@ -279,6 +305,10 @@ class Plan {
       chapters = (j['chapters'] as List? ?? const [])
           .map((e) => PlanChapter.fromJson(e as Map<String, dynamic>))
           .toList(),
+      films = j['films'] == null
+          ? null
+          : PlanFilms.fromJson(j['films'] as Map<String, dynamic>),
+      feature = j['feature'] as bool? ?? false,
       days = (j['days'] as List)
           .map((e) => PlanDay.fromJson(e as Map<String, dynamic>))
           .toList();

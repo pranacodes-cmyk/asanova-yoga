@@ -5,10 +5,13 @@ import 'package:provider/provider.dart';
 
 import '../data/content.dart';
 import '../data/models.dart';
+import '../logic/lesson_media.dart' show courseFilms, filmPoster;
 import '../logic/logic.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
+import '../widgets/chakra.dart';
+import '../widgets/demo_film.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/sheet.dart';
 import '../widgets/toast.dart';
@@ -43,6 +46,7 @@ class PlanDetailScreen extends StatelessWidget {
     final isActive = app.activePlanId == planId;
     final pct = completed.length / plan.days.length;
     final nextLocked = isDayLocked(plan, next, premium);
+    final preview = courseFilms(plan).preview;
 
     void openDay(int day) {
       if (isDayLocked(plan, day, premium)) {
@@ -125,7 +129,15 @@ class PlanDetailScreen extends StatelessWidget {
               children: [
                 HeroHeader(
                   image: img(plan.image),
-                  height: 380,
+                  height: preview != null ? 460 : 380,
+                  background: preview == null
+                      ? null
+                      : DemoFilm.keyed(
+                          film: preview,
+                          poster: filmPoster(preview),
+                          portrait: true,
+                          alignment: const Alignment(0, -0.4),
+                        ),
                   topBar: Row(
                     children: [
                       const BackBtn(tone: Tone.dark),
@@ -332,6 +344,8 @@ class PlanDetailScreen extends StatelessWidget {
                           const SizedBox(height: 20),
                           MeetTutorCard(plan: plan),
                         ],
+                        if (plan.chapters.any((c) => c.chakra != null))
+                          ChakraMap(plan: plan, completed: completed),
                         const SizedBox(height: 32),
                         Text(tr('plan.yourDays'), style: T.title.s(20)),
                         const SizedBox(height: 14),
@@ -357,6 +371,9 @@ class PlanDetailScreen extends StatelessWidget {
                                 'focus': d.focus.map(trTag).join(', '),
                               }),
                               learn: learnNames(d.learn),
+                              meditation: d.meditation == null
+                                  ? null
+                                  : Content.i.meditation(d.meditation!)?.title,
                               restore: d.restore,
                               done: completed.contains(d.day),
                               locked: isDayLocked(plan, d.day, premium),
@@ -423,7 +440,19 @@ class _ChapterHeader extends StatelessWidget {
           color: C.terracotta,
         ),
         const SizedBox(height: 4),
-        Text(chapter.title, style: T.title.s(18)),
+        Row(
+          children: [
+            if (C.chakra(chapter.chakra) != null) ...[
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: C.chakra(chapter.chakra), shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Flexible(child: Text(chapter.title, style: T.title.s(18))),
+          ],
+        ),
         if (chapter.summary.isNotEmpty) ...[
           const SizedBox(height: 2),
           Text(chapter.summary, style: T.caption),
@@ -439,6 +468,7 @@ class _DayRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.learn = const [],
+    this.meditation,
     required this.restore,
     required this.done,
     required this.locked,
@@ -450,6 +480,9 @@ class _DayRow extends StatelessWidget {
 
   /// What this day teaches for the first time (shown as "New: …").
   final List<String> learn;
+
+  /// Title of the meditation the day closes with (shown as "Then: …").
+  final String? meditation;
   final bool restore, done, locked, isNext;
   final VoidCallback onTap;
   @override
@@ -515,6 +548,27 @@ class _DayRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: T.caption,
                   ),
+                  if (meditation != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(LucideIcons.flower2, size: 12, color: C.gold),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            tr('plan.dayMeditation', {'title': meditation!}),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: T.caption.copyWith(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: C.ink.withValues(alpha: 0.72),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (learn.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Row(

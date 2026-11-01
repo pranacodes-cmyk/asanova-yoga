@@ -71,7 +71,7 @@ void main() {
         }
       },
     );
-    test('free offer: 3 quick sessions + Days 1–2 of the 30-day journey + 4 meditations, everything else fully paid', () {
+    test('free offer: 3 quick sessions + Days 1–2 of the 30-day journey + Day 1 of Chakra Awakening + 4 meditations, everything else fully paid', () {
       final c = Content.i;
       final starter = c.plans.firstWhere((p) => p.id == freeStarterId);
       expect(starter.days.length, 30);
@@ -79,13 +79,15 @@ void main() {
         final free = c.quickSessions.any((q) => q.id == p.id);
         expect(
           [p.premium, p.freeDays],
-          free ? [false, p.days.length] : [true, p.id == freeStarterId ? 2 : 0],
+          free
+              ? [false, p.days.length]
+              : [true, p.id == freeStarterId ? 2 : (p.id == 'chakra-awakening-21' ? 1 : 0)],
           reason: p.id,
         );
       }
       expect(c.meditations.where((m) => !m.premium).length, 4);
     });
-    test('no multi-day course is fully free; the journey is the only one with free days', () {
+    test('no multi-day course is fully free; only the journey and Chakra Awakening have free days', () {
       final free = Content.i.challengeIds
           .where((id) => !Content.i.plan(id)!.premium)
           .toList();
@@ -95,7 +97,7 @@ void main() {
             .where((p) => p.premium && p.freeDays > 0)
             .map((p) => p.id)
             .toList(),
-        [freeStarterId],
+        [freeStarterId, 'chakra-awakening-21'],
       );
     });
     test('free quick sessions run 10, 5 and 8 minutes including rests', () {
@@ -365,14 +367,14 @@ void main() {
         ['box-breathing', 'evening-wind-down', 'morning-clarity', 'ocean-calm'],
       );
     });
-    test('Ancient paths ships six premium courses and three premium classes, with no free days', () {
+    test('Ancient paths ships six premium courses and three premium classes; only Chakra Awakening opens Day 1 free', () {
       final ancient = Content.i.plans
           .where((p) => p.group == 'Ancient paths')
           .toList();
       expect(
         ancient.where((p) => p.days.length > 1).map((p) => p.id).toList(),
         [
-          'chakra-journey-14',
+          'chakra-awakening-21',
           'eight-limbs-8',
           'classical-hatha-14',
           'surya-chandra-10',
@@ -386,7 +388,7 @@ void main() {
       );
       for (final p in ancient) {
         expect(p.premium, true);
-        expect(p.freeDays, 0);
+        expect(p.freeDays, p.id == 'chakra-awakening-21' ? 1 : 0);
       }
     });
     test('ships 36 meditations, each line spoken once', () {
@@ -1319,6 +1321,77 @@ void main() {
       expect(analyticsAnswer('goals', ['stress', 'back']), 'back,stress');
       expect(analyticsAnswer('dailyMinutes', 15), 15);
       expect(analyticsAnswer('goals', null), isNull);
+    });
+  });
+
+  group('Chakra Awakening', () {
+    late Plan chakra;
+    setUp(() => chakra = Content.i.plan('chakra-awakening-21')!);
+
+    test('is 21 days, three per centre from root to crown, with only Day 1 free', () {
+      expect(chakra.days.length, 21);
+      expect(chakra.chapters.map((c) => c.chakra).toList(), ['root', 'sacral', 'solar', 'heart', 'throat', 'brow', 'crown']);
+      expect(chakra.chapters.map((c) => [c.from, c.to]).toList(), [
+        [1, 3], [4, 6], [7, 9], [10, 12], [13, 15], [16, 18], [19, 21],
+      ]);
+      expect(chakra.premium, isTrue);
+      expect(chakra.freeDays, 1);
+      expect(isDayLocked(chakra, 1, false), isFalse);
+      expect(isDayLocked(chakra, 2, false), isTrue);
+    });
+    test("seals every centre with its own mudra and seed sound, and rests in its own visualisation", () {
+      const seals = ['seal-root', 'seal-sacral', 'seal-solar', 'seal-heart', 'seal-throat', 'seal-brow', 'seal-crown'];
+      for (var i = 0; i < chakra.chapters.length; i++) {
+        final c = chakra.chapters[i];
+        final ids = [
+          for (final d in chakra.days.where((d) => d.day >= c.from && d.day <= c.to))
+            for (final it in d.items) it.e,
+        ];
+        expect(ids, contains(seals[i]), reason: c.title);
+        expect(ids, contains(seals[i].replaceFirst('seal-', 'focus-')), reason: c.title);
+      }
+      expect(chakra.days[20].items.map((it) => it.e).where((e) => e.startsWith('seal-')).toList(), seals);
+    });
+    test("closes every centre's resting day with that centre's own meditation", () {
+      expect(
+        [for (final d in chakra.days) if (d.meditation != null) [d.day, d.meditation]],
+        [
+          [3, 'chakra-root'], [6, 'chakra-sacral'], [9, 'chakra-solar'], [12, 'chakra-heart'],
+          [15, 'chakra-throat'], [18, 'chakra-third-eye'], [20, 'chakra-crown'], [21, 'chakra-journey'],
+        ],
+      );
+      expect(dayMeditation(chakra, 3), 'chakra-root');
+      expect(dayMeditation(chakra, 1), isNull);
+      expect(dayMeditation(null, 3), isNull);
+    });
+    test('plays its own welcome and closing films, separate from the shared course film', () {
+      final f = courseFilms(chakra);
+      expect([f.welcome, f.finale, f.preview], ['yc-chakra-welcome-v1', 'yc-chakra-finale-v1', 'yc-chakra-preview-v1']);
+      final shared = courseFilms(Content.i.plan('yoga-journey-30'));
+      expect([shared.welcome, shared.finale, shared.preview], ['yc-yoga-flow-v3', 'yc-yoga-flow-v3', null]);
+      expect(filmPoster('yc-chakra-welcome-v1'), 'yc-chakra-welcome-v1-poster');
+      expect(filmPoster('yc-yoga-flow-v3'), 'yc-yoga-flow-v2-poster');
+      final paths = sessionMediaPaths(
+        resolveSession('plan:chakra-awakening-21:1')!,
+        const JourneyOptions(known: {}, demos: true, welcome: true),
+        Content.i.voice,
+      );
+      expect(paths.first, 'video/yc-chakra-welcome-v1.mp4');
+      expect(paths, contains('video/yc-chakra-finale-v1.mp4'));
+      expect(paths, isNot(contains('video/yc-yoga-flow-v3.mp4')));
+    });
+    test('the chakra map lights finished centres and marks the current one', () {
+      const up = ChapterState.upcoming;
+      expect(chapterStates(chakra, []), [ChapterState.current, up, up, up, up, up, up]);
+      expect(chapterStates(chakra, [1, 2, 3, 4]), [ChapterState.done, ChapterState.current, up, up, up, up, up]);
+      expect(chapterStates(chakra, [for (final d in chakra.days) d.day]), List.filled(7, ChapterState.done));
+    });
+    test('Today features it until it is the active plan or finished', () {
+      expect(Content.i.plans.where((p) => p.feature).map((p) => p.id).toList(), ['chakra-awakening-21']);
+      expect(showsFeature('chakra-awakening-21', 'yoga-journey-30', 0, 21), isTrue);
+      expect(showsFeature('chakra-awakening-21', 'chakra-awakening-21', 3, 21), isFalse);
+      expect(showsFeature('chakra-awakening-21', 'yoga-journey-30', 21, 21), isFalse);
+      expect(showsFeature(null, 'yoga-journey-30', 0, 21), isFalse);
     });
   });
 }

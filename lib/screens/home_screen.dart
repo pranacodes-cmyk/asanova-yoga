@@ -12,6 +12,7 @@ import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
 import '../widgets/cards.dart';
+import '../widgets/chakra.dart';
 import '../widgets/feedback_sheet.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/tab_shell.dart';
@@ -361,6 +362,30 @@ class HomeScreen extends StatelessWidget {
         ],
       ),
     );
+    // the signature experience (Chakra Awakening) as Today's cinematic card, unless it already leads Today
+    final feature = c.plans.where((p) => p.feature).firstOrNull;
+    final featureDone = feature == null
+        ? const <int>[]
+        : app.planProgress[feature.id]?.completedDays ?? const <int>[];
+    final List<Widget> featureCard =
+        feature != null &&
+            showsFeature(feature.id, plan.id, featureDone.length, feature.days.length)
+        ? [
+            const SizedBox(height: 16),
+            Reveal(
+              delay: 0.08,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: FeatureExperienceCard(
+                  plan: feature,
+                  completed: featureDone,
+                  premium: premium,
+                  onOpen: () => context.push('/plan/${feature.id}'),
+                ),
+              ),
+            ),
+          ]
+        : const [];
     final Widget ancientShelf = ancient.isEmpty
         ? const SizedBox.shrink()
         : Reveal(
@@ -537,6 +562,7 @@ class HomeScreen extends StatelessWidget {
 
             if (!leadFree) ...[
               planHero,
+              ...featureCard,
               if (!premium) ...offerCard,
               const SizedBox(height: 16),
               rings,
@@ -597,6 +623,7 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 32),
               const _MadeForYouHeader(),
               planHero,
+              ...featureCard,
               if (!premium) ...offerCard,
               const SizedBox(height: 16),
               rings,
