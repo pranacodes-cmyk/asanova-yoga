@@ -168,6 +168,33 @@ jobs:
             -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             archive | tail -n 60
+      - name: Fix and verify privacy manifests (ITMS-91064)
+        run: |
+          set -euo pipefail
+          # App Store Connect rejects any privacy manifest whose tracking flag disagrees with its
+          # tracking-domain list. SDK manifests with domains get tracking=true; then every manifest
+          # in the archive is checked both ways and the build fails before upload on any mismatch.
+          python3 - "$RUNNER_TEMP/Runner.xcarchive" <<'PY'
+          import plistlib, glob, sys
+          bad = 0
+          files = glob.glob(sys.argv[1] + '/**/*.xcprivacy', recursive=True)
+          for f in files:
+              d = plistlib.load(open(f, 'rb'))
+              domains = d.get('NSPrivacyTrackingDomains') or []
+              tracking = bool(d.get('NSPrivacyTracking'))
+              if domains and not tracking:
+                  d['NSPrivacyTracking'] = True
+                  plistlib.dump(d, open(f, 'wb'), fmt=plistlib.FMT_XML)
+                  print('patched tracking=true:', f)
+                  tracking = True
+              ok = tracking == bool(domains)
+              print('OK ' if ok else 'BAD', tracking, domains, f.split('.app/')[-1])
+              bad |= not ok
+          root = [f for f in files if f.endswith('.app/PrivacyInfo.xcprivacy')]
+          if not root:
+              print('BAD: app root PrivacyInfo.xcprivacy missing'); bad = 1
+          sys.exit(1 if bad else 0)
+          PY
       - name: Export IPA (cloud-signed for App Store)
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
