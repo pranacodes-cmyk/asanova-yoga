@@ -146,22 +146,29 @@ class MediaStore {
         await Future<void>.delayed(Duration(milliseconds: 400 * attempt * attempt));
       }
       try {
-        final res = await client
-            .get(Uri.parse(url(p)))
-            .timeout(const Duration(seconds: 60));
+        // Stall limit, not a total limit: slow-but-moving films on weak networks still finish;
+        // only a transfer that receives no data for this long is abandoned and retried.
+        const stall = Duration(seconds: 20);
+        final res = await client.send(http.Request('GET', Uri.parse(url(p)))).timeout(stall);
         if (res.statusCode == 404) throw const _NotOnServer();
-        if (res.statusCode != 200 || res.bodyBytes.isEmpty) {
+        if (res.statusCode != 200) {
           throw HttpException('HTTP ${res.statusCode} for $p');
         }
+        final builder = BytesBuilder(copy: false);
+        await for (final chunk in res.stream.timeout(stall)) {
+          builder.add(chunk);
+        }
+        final body = builder.takeBytes();
+        if (body.isEmpty) throw HttpException('empty $p');
         final expected = res.contentLength;
-        if (expected != null && expected > 0 && expected != res.bodyBytes.length) {
-          throw HttpException('incomplete $p: ${res.bodyBytes.length}/$expected bytes');
+        if (expected != null && expected > 0 && expected != body.length) {
+          throw HttpException('incomplete $p: ${body.length}/$expected bytes');
         }
         final f = _fileFor(p) ?? File('${d.path}/$p');
         await f.parent.create(recursive: true);
         final tmp = File('${f.path}.part');
-        await tmp.writeAsBytes(res.bodyBytes, flush: true);
-        if (await tmp.length() != res.bodyBytes.length) {
+        await tmp.writeAsBytes(body, flush: true);
+        if (await tmp.length() != body.length) {
           throw HttpException('write failed for $p');
         }
         await tmp.rename(f.path);
