@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:io' hide BytesBuilder;
+import 'dart:typed_data' show BytesBuilder;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
