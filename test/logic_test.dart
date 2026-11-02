@@ -420,6 +420,8 @@ void main() {
       expect(isSessionLocked('plan:yoga-foundations-21:4', false), true);
       expect(isSessionLocked('plan:yoga-foundations-21:4', true), false);
       expect(isSessionLocked('quick:desk-reset', false), false);
+      expect(isSessionLocked('quick:morning-wake-up', false), false);
+      expect(isSessionLocked('quick:evening-unwind', false), false);
     });
     test('chair and wall classes are labelled with their equipment', () {
       for (final id in [

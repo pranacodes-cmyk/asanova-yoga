@@ -849,6 +849,11 @@ bool isMeditationLocked(String id, bool premium) {
 /// Player-entry guard: direct routes obey the same day gate as program screens.
 bool isSessionLocked(String sessionId, bool premium) {
   final parts = sessionId.split(':');
+  // Quick sessions are one-day programs; the server (OTA) can mark them premium.
+  if (parts.length == 2 && parts[0] == 'quick') {
+    final q = Content.i.plan(parts[1]);
+    return q != null && isDayLocked(q, 1, premium);
+  }
   if (parts.length != 3 || parts[0] != 'plan') return false;
   final plan = Content.i.plan(parts[1]);
   final day = int.tryParse(parts[2]);
