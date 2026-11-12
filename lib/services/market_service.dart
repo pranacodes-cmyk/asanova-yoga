@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
@@ -84,7 +83,7 @@ class Market {
 
   /// True when this phone (or, with [reference], the paid UTR/mandate) has Plus right now.
   static Future<bool> hasAccess({String? reference}) async {
-    final r = await _post('status', {if (reference != null) 'reference': reference});
+    final r = await _post('status', {'reference': ?reference});
     if (r == null) return false;
     final until = DateTime.tryParse('${r['paidUntil'] ?? ''}');
     return upiAccessActive(r['status'] as String?, until, DateTime.now());
