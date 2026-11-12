@@ -1,3 +1,4 @@
+import '../services/market_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -783,7 +784,7 @@ class ProfileScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       option(null, tr('profile.deviceLanguage')),
-                      for (final e in languageNames.entries)
+                      for (final e in languageNames.entries.where((e) => languagesFor(Market.india).contains(e.key)))
                         option(e.key, e.value),
                     ],
                   ),

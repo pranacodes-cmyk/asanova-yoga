@@ -1155,3 +1155,92 @@ Object? analyticsAnswer(String stepId, Object? value) {
   if (isPrivate) return 'answered';
   return value is num ? value : '$value';
 }
+
+// ------------------------------------------------------------ India market (UPI)
+/// Indian people get a shorter funnel and a UPI paywall. Strongest signal first: the SIM/network
+/// country (travellers keep their home SIM), then the device region, then the time zone.
+bool isIndiaMarket({String? simCountry, String? networkCountry, String? region, String? timeZone}) {
+  String norm(String? c) => (c ?? '').trim().toUpperCase();
+  for (final c in [norm(simCountry), norm(networkCountry)]) {
+    if (c.isNotEmpty) return c == 'IN';
+  }
+  final r = norm(region);
+  if (r.isNotEmpty) return r == 'IN';
+  final tz = timeZone ?? '';
+  return tz == 'Asia/Kolkata' || tz == 'Asia/Calcutta';
+}
+
+/// India's language picker offers English and Hindi only; everyone else sees every language.
+List<String> languagesFor(bool india) => india ? const ['en', 'hi'] : supportedLanguages;
+
+/// India's five onboarding slides, in this order.
+const indiaOnboardingIds = ['goals', 'experience', 'limitations', 'dailyMinutes', 'name'];
+List<T> onboardingStepsFor<T>(List<T> steps, bool india, String Function(T) idOf) {
+  if (!india) return List.of(steps);
+  return [
+    for (final id in indiaOnboardingIds) ...steps.where((s) => idOf(s) == id).take(1),
+  ];
+}
+
+/// The single India plan: ₹2 for the first day, then ₹399 every month by UPI Autopay.
+const indiaTrialPaise = 200;
+const indiaTrialDays = 1;
+const indiaMonthlyPaise = 39900;
+/// Until the UPI provider is approved, tapping pay unlocks Plus for testing; flip to false before launch.
+const upiTestUnlock = true;
+
+/// Most-used UPI apps first (NPCI share: PhonePe, Google Pay, Paytm, then bank/other apps).
+const upiAppPriority = ['com.phonepe.app', 'com.google.android.apps.nbu.paisa.user', 'net.one97.paytm', 'in.org.npci.upiapp', 'in.amazon.mShop.android.shopping', 'com.dreamplug.androidapp', 'com.mobikwik_new'];
+
+/// Installed UPI apps in priority order (unknown ones keep phone order, after known ones); the first is preselected.
+List<T> sortUpiApps<T>(List<T> apps, String Function(T) packageOf) {
+  int rank(String p) {
+    final i = upiAppPriority.indexOf(p);
+    return i < 0 ? upiAppPriority.length : i;
+  }
+  final idx = [for (var i = 0; i < apps.length; i++) i];
+  idx.sort((x, y) {
+    final r = rank(packageOf(apps[x])) - rank(packageOf(apps[y]));
+    return r != 0 ? r : x - y;
+  });
+  return [for (final i in idx) apps[i]];
+}
+
+/// Live India offer (server table `upi_offer`, changeable without a new build).
+class UpiOffer {
+  const UpiOffer({required this.trialPaise, required this.trialDays, required this.monthlyPaise, required this.showMonthlyLine, this.showClose = true});
+  final int trialPaise;
+  final int trialDays;
+  final int monthlyPaise;
+  final bool showMonthlyLine;
+  final bool showClose;
+}
+
+/// Default until the server answers: the monthly line under ₹2 stays hidden.
+const upiOfferDefault = UpiOffer(trialPaise: indiaTrialPaise, trialDays: indiaTrialDays, monthlyPaise: indiaMonthlyPaise, showMonthlyLine: false);
+
+/// Reads the server's offer field by field; anything missing or invalid keeps the default.
+UpiOffer parseUpiOffer(Object? raw) {
+  final r = raw is Map ? raw : const {};
+  int n(Object? v, int min, int max, int d) => v is int && v >= min && v <= max ? v : d;
+  const d = upiOfferDefault;
+  final show = r['showMonthlyLine'];
+  return UpiOffer(
+    trialPaise: n(r['trialPaise'], 100, 10000000, d.trialPaise),
+    trialDays: n(r['trialDays'], 1, 31, d.trialDays),
+    monthlyPaise: n(r['monthlyPaise'], 100, 10000000, d.monthlyPaise),
+    showMonthlyLine: show is bool ? show : d.showMonthlyLine,
+    showClose: r['showClose'] is bool ? r['showClose'] as bool : d.showClose,
+  );
+}
+
+/// India only: the ✕ hides (hard paywall) only on the after-onboarding paywall and only when the server says so.
+bool upiCanClose(UpiOffer offer, String from) => offer.showClose || from != 'onboarding';
+String rupees(int paise) => '₹${(paise / 100).round()}';
+
+/// A UPI subscription unlocks Plus only while trialing/active and not past its paid-until date.
+bool upiAccessActive(String? status, DateTime? paidUntil, DateTime now) {
+  if (status == null || paidUntil == null) return false;
+  if (status != 'trial' && status != 'active') return false;
+  return paidUntil.isAfter(now);
+}

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../i18n/i18n.dart';
 import '../logic/logic.dart';
+import '../services/market_service.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
@@ -31,7 +32,9 @@ class LanguageScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
-    final selected = resolveLanguage(app.language, deviceLanguageTags());
+    final choices = languagesFor(Market.india);
+    final resolved = resolveLanguage(app.language, deviceLanguageTags());
+    final selected = choices.contains(resolved) ? resolved : 'en';
     return EnsoScaffold(
       body: SafeArea(
         child: Column(
@@ -68,10 +71,10 @@ class LanguageScreen extends StatelessWidget {
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                itemCount: supportedLanguages.length,
+                itemCount: choices.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
-                  final code = supportedLanguages[index];
+                  final code = choices[index];
                   final active = selected == code;
                   return Semantics(
                     button: true,

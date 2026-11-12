@@ -1,3 +1,5 @@
+import 'services/market_service.dart';
+import 'screens/upi_paywall_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -179,10 +181,12 @@ GoRouter buildRouter(AppState app) {
         path: '/paywall',
         pageBuilder: (c, s) => _page(
           s,
-          PaywallScreen(
-            from: s.uri.queryParameters['from'] ?? 'app',
-            offer: s.uri.queryParameters['offer'] ?? 'standard',
-          ),
+          Market.india
+              ? UpiPaywallScreen(from: s.uri.queryParameters['from'] ?? 'app')
+              : PaywallScreen(
+                  from: s.uri.queryParameters['from'] ?? 'app',
+                  offer: s.uri.queryParameters['offer'] ?? 'standard',
+                ),
           modal: true,
         ),
       ),

@@ -1,3 +1,4 @@
+import 'services/market_service.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -33,7 +34,14 @@ Future<void> main() async {
   await Content.load();
   await MediaStore.init();
   await PurchaseService.init();
+  await Market.init();
   final app = await AppState.load();
+  // India UPI plan: the server knows this phone (Android ID), so a reinstall restores Plus.
+  if (Market.india) {
+    Market.hasAccess().then((ok) {
+      if (ok && !app.premium.active) app.setPremium('upiMonthly');
+    });
+  }
   final lang = resolveLanguage(app.language, deviceLanguageTags());
   if (lang != 'en') await Content.load(lang);
   await AnalyticsService.init(enabled: app.privacy.analytics);

@@ -1396,4 +1396,52 @@ void main() {
       expect(showsFeature(null, 'yoga-journey-30', 0, 21), isFalse);
     });
   });
+
+  group('India market', () {
+    test('SIM country wins over device region', () {
+      expect(isIndiaMarket(simCountry: 'in', region: 'US'), isTrue);
+      expect(isIndiaMarket(simCountry: 'US', region: 'IN'), isFalse);
+      expect(isIndiaMarket(region: 'IN'), isTrue);
+      expect(isIndiaMarket(timeZone: 'Asia/Kolkata'), isTrue);
+      expect(isIndiaMarket(timeZone: 'Europe/Berlin'), isFalse);
+    });
+    test('India sees only English and Hindi', () {
+      expect(languagesFor(true), ['en', 'hi']);
+      expect(languagesFor(false).length, 8);
+    });
+    test('India onboarding has five slides', () {
+      final ids = onboardingStepsFor(Content.i.onboarding, true, (s) => s.id).map((s) => s.id).toList();
+      expect(ids, ['goals', 'experience', 'limitations', 'dailyMinutes', 'name']);
+      expect(onboardingStepsFor(Content.i.onboarding, false, (s) => s.id).length, Content.i.onboarding.length);
+    });
+    test('2 rupees for one day, then 399 a month', () {
+      expect([indiaTrialPaise, indiaTrialDays, indiaMonthlyPaise], [200, 1, 39900]);
+    });
+    test('India offer: monthly line hidden by default, server values win, bad values fall back', () {
+      String s(UpiOffer o) => '${o.trialPaise},${o.trialDays},${o.monthlyPaise},${o.showMonthlyLine}';
+      expect(s(parseUpiOffer(null)), '200,1,39900,false');
+      expect(s(parseUpiOffer({'trialPaise': 900, 'monthlyPaise': 29900, 'showMonthlyLine': true})), '900,1,29900,true');
+      expect(s(parseUpiOffer({'trialPaise': -5, 'trialDays': 99, 'showMonthlyLine': 'yes'})), '200,1,39900,false');
+    });
+    test('India hard paywall: close hidden only after onboarding and only when the server turns it off', () {
+      final hard = parseUpiOffer({'showClose': false});
+      expect(upiCanClose(hard, 'onboarding'), isFalse);
+      expect(upiCanClose(hard, 'course'), isTrue);
+      expect(upiCanClose(parseUpiOffer(null), 'onboarding'), isTrue);
+    });
+    test('UPI apps: PhonePe, Google Pay, Paytm first; unknown apps after, in phone order', () {
+      final got = sortUpiApps(['com.bank.x', 'net.one97.paytm', 'com.google.android.apps.nbu.paisa.user', 'com.bank.y', 'com.phonepe.app'], (p) => p);
+      expect(got, ['com.phonepe.app', 'com.google.android.apps.nbu.paisa.user', 'net.one97.paytm', 'com.bank.x', 'com.bank.y']);
+    });
+    test('UPI access only while trial/active and paid', () {
+      final now = DateTime.utc(2026, 11, 12, 10);
+      expect(upiAccessActive('trial', DateTime.utc(2026, 11, 13, 10), now), isTrue);
+      expect(upiAccessActive('active', DateTime.utc(2026, 11, 11, 10), now), isFalse);
+      expect(upiAccessActive('cancelled', DateTime.utc(2026, 12, 13), now), isFalse);
+      expect(upiAccessActive(null, null, now), isFalse);
+    });
+  });
+  test('India UPI test unlock is on until the provider is approved', () {
+    expect(upiTestUnlock, isTrue);
+  });
 }

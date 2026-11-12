@@ -1,3 +1,4 @@
+import '../services/market_service.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -41,7 +42,7 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int index = 0;
   int direction = 1;
-  List<OnbStep> get steps => Content.i.onboarding;
+  late final List<OnbStep> steps = onboardingStepsFor(Content.i.onboarding, Market.india, (s) => s.id);
 
   // sound: soft music + the coach's voice, one toggle for both
   bool sound = true;
