@@ -101,7 +101,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  OnbChapter? get _chapter => Content.i.chapter(steps[index].section);
+  OnbChapter? get _chapter =>
+      showsOnboardingChapter(steps[index].section, Market.india)
+          ? Content.i.chapter(steps[index].section)
+          : null;
 
   /// Runs after every step change (web: the effect keyed on the step index).
   void _onStep() {
@@ -126,7 +129,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         !_seenChapters.contains(ch.section);
     setState(() {
       reply = null;
-      if (open) chapterOpen = true;
+      chapterOpen = open;
     });
     if (open) {
       _seenChapters.add(ch.section);

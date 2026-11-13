@@ -11,6 +11,7 @@ import '../data/content.dart';
 import '../i18n/i18n.dart';
 import '../logic/logic.dart';
 import '../services/analytics_service.dart';
+import '../services/audio_service.dart';
 import '../services/market_service.dart';
 import '../state/app_state.dart';
 import '../theme/text.dart';
@@ -44,6 +45,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
   @override
   void initState() {
     super.initState();
+    _stopOnboardingAudio();
     WidgetsBinding.instance.addObserver(this);
     AnalyticsService.event('paywall_viewed', {'variant': 'upi', 'from': widget.from});
     Market.offer().then((o) {
@@ -61,9 +63,20 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
 
   @override
   void dispose() {
+    _stopOnboardingAudio();
     WidgetsBinding.instance.removeObserver(this);
     _ref.dispose();
     super.dispose();
+  }
+
+  void _stopOnboardingAudio() {
+    if (Ambient.state.value.key == 'music-bamboo') Ambient.stop();
+    Voice.stop();
+  }
+
+  void _leave() {
+    _stopOnboardingAudio();
+    context.go('/');
   }
 
   /// Back from the UPI app: ask the server whether the ₹2 went through.
@@ -86,7 +99,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
     if (!mounted) return;
     AnalyticsService.event('purchase_completed', {'plan': 'upiMonthly', 'variant': 'upi', 'from': widget.from});
     context.read<AppState>().setPremium('upiMonthly');
-    context.go('/');
+    _leave();
   }
 
   Future<void> _pay() async {
@@ -206,7 +219,10 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
     final app = _app;
     // Hard paywall (server-set, after onboarding only): Android back can't skip it either.
     return PopScope(
-      canPop: upiCanClose(offer, widget.from),
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !busy && upiCanClose(offer, widget.from)) _leave();
+      },
       child: EnsoScaffold(
       body: Column(
         children: [
@@ -225,19 +241,15 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                             padding: EdgeInsets.only(top: math.max(topInset(context), frame.maxHeight * 0.10)),
                             child: const PaywallFilm(topAligned: true),
                           )),
-                          Positioned(
-                            left: 0, right: 0, bottom: 0, height: 64,
-                            child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [C.cream.withValues(alpha: 0), C.cream]))),
-                          ),
                           if (upiCanClose(offer, widget.from)) Positioned(
                             top: topInset(context) + 6,
                             right: 16,
-                            child: CircleBtn(icon: LucideIcons.x, tone: Tone.dark, label: tr('common.close'), onTap: busy ? null : () => context.go('/')),
+                            child: CircleBtn(icon: LucideIcons.x, size: 32, iconSize: 16, tone: Tone.dark, label: tr('common.close'), onTap: busy ? null : _leave),
                           ),
                         ]),
                       ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -249,7 +261,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                             ]),
                           ),
                           const SizedBox(height: 8),
-                          Text(tr('upi.heroTitle', {'trial': _trial}), style: T.displayMd.copyWith(fontSize: 23, height: 1.12)),
+                          Text(tr('upi.heroTitle', {'trial': _trial}), style: T.displayMd.copyWith(fontSize: 21, height: 1.2)),
                           const SizedBox(height: 10),
                           for (final (icon, text) in benefits)
                             Padding(
@@ -270,9 +282,9 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                                   Text(tr('paywall.plusBadge'), style: T.tiny.copyWith(fontSize: 11, letterSpacing: 1, fontWeight: FontWeight.w700, color: C.jadeDeep)),
                                   const SizedBox(height: 4),
                                   Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                                    Text(_trial, style: T.displayMd.copyWith(fontSize: 34, height: 1, fontWeight: FontWeight.w800, color: C.jadeDeep)),
+                                    Text(_trial, style: T.displayMd.copyWith(fontSize: 30, height: 1, fontWeight: FontWeight.w800, color: C.jadeDeep)),
                                     const SizedBox(width: 6),
-                                    Text(tr('upi.today'), style: T.label.s(16)),
+                                    Text(tr('upi.today'), style: T.label.s(13)),
                                   ]),
                                   if (offer.showMonthlyLine) ...[
                                     const SizedBox(height: 4),
@@ -335,7 +347,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                   ),
                 ),
                 const SizedBox(height: 8),
-                EnsoButton(label: busy ? tr('upi.checking') : tr('upi.cta', {'trial': _trial}), loading: busy, onTap: busy ? null : _pay),
+                EnsoButton(label: busy ? tr('upi.checking') : tr('upi.cta', {'trial': _trial}), size: BtnSize.md, loading: busy, onTap: busy ? null : _pay),
                 const SizedBox(height: 6),
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Icon(LucideIcons.lock, color: C.jadeDeep, size: 13),

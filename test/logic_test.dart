@@ -1416,8 +1416,20 @@ void main() {
     });
     test('India onboarding has five slides', () {
       final ids = onboardingStepsFor(Content.i.onboarding, true, (s) => s.id).map((s) => s.id).toList();
-      expect(ids, ['goals', 'experience', 'limitations', 'dailyMinutes', 'name']);
-      expect(onboardingStepsFor(Content.i.onboarding, false, (s) => s.id).length, Content.i.onboarding.length);
+      expect(ids, ['experience', 'goals', 'limitations', 'dailyMinutes', 'name']);
+    });
+    test('global onboarding keeps its exact authored order', () {
+      expect(onboardingStepsFor(Content.i.onboarding, false, (s) => s.id), Content.i.onboarding);
+    });
+    test('India questions progress through sections without going backwards', () {
+      const sections = ['About you', 'Your intention', 'Your body', 'Your practice'];
+      final steps = onboardingStepsFor(Content.i.onboarding, true, (s) => s.id);
+      expect(steps.map((s) => sections.indexOf(s.section)).toList(), [0, 1, 2, 3, 3]);
+    });
+    test('India skips only the physical-check chapter; global keeps all chapters', () {
+      const sections = ['About you', 'Your intention', 'Your body', 'Your practice'];
+      expect(sections.map((s) => showsOnboardingChapter(s, true)).toList(), [true, true, false, true]);
+      expect(sections.map((s) => showsOnboardingChapter(s, false)).toList(), [true, true, true, true]);
     });
     test('2 rupees for one day, then 399 a month', () {
       expect([indiaTrialPaise, indiaTrialDays, indiaMonthlyPaise], [200, 1, 39900]);
@@ -1432,7 +1444,8 @@ void main() {
       final hard = parseUpiOffer({'showClose': false});
       expect(upiCanClose(hard, 'onboarding'), isFalse);
       expect(upiCanClose(hard, 'course'), isTrue);
-      expect(upiCanClose(parseUpiOffer(null), 'onboarding'), isTrue);
+      expect(upiCanClose(parseUpiOffer(null), 'onboarding'), isFalse);
+      expect(upiCanClose(parseUpiOffer({'showClose': true}), 'onboarding'), isTrue);
     });
     test('UPI apps: PhonePe, Google Pay, Paytm first; unknown apps after, in phone order', () {
       final got = sortUpiApps(['com.bank.x', 'net.one97.paytm', 'com.google.android.apps.nbu.paisa.user', 'com.bank.y', 'com.phonepe.app'], (p) => p);

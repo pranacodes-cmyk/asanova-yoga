@@ -1174,13 +1174,17 @@ bool isIndiaMarket({String? simCountry, String? networkCountry, String? region, 
 List<String> languagesFor(bool india) => india ? const ['en', 'hi'] : supportedLanguages;
 
 /// India's five onboarding slides, in this order.
-const indiaOnboardingIds = ['goals', 'experience', 'limitations', 'dailyMinutes', 'name'];
+const indiaOnboardingIds = ['experience', 'goals', 'limitations', 'dailyMinutes', 'name'];
 List<T> onboardingStepsFor<T>(List<T> steps, bool india, String Function(T) idOf) {
   if (!india) return List.of(steps);
   return [
     for (final id in indiaOnboardingIds) ...steps.where((s) => idOf(s) == id).take(1),
   ];
 }
+
+/// India omits physical pose checks, so their chapter must not be shown or narrated.
+bool showsOnboardingChapter(String section, bool india) =>
+    !india || section != 'Your body';
 
 /// The single India plan: ₹2 for the first day, then ₹399 every month by UPI Autopay.
 const indiaTrialPaise = 200;
@@ -1219,8 +1223,8 @@ class UpiOffer {
   final bool showClose;
 }
 
-/// Default until the server answers: the monthly line under ₹2 stays hidden.
-const upiOfferDefault = UpiOffer(trialPaise: indiaTrialPaise, trialDays: indiaTrialDays, monthlyPaise: indiaMonthlyPaise, showMonthlyLine: false);
+/// Until the server answers, keep onboarding closed and the monthly card line hidden.
+const upiOfferDefault = UpiOffer(trialPaise: indiaTrialPaise, trialDays: indiaTrialDays, monthlyPaise: indiaMonthlyPaise, showMonthlyLine: false, showClose: false);
 
 /// Reads the server's offer field by field; anything missing or invalid keeps the default.
 UpiOffer parseUpiOffer(Object? raw) {

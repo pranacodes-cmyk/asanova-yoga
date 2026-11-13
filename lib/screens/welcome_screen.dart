@@ -157,14 +157,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         TextSpan(
                           text: tr('welcome.headlineRitualLine'),
                           style: T.serifAccent.copyWith(
-                            fontSize: 32,
+                            fontSize: 28,
                             color: C.ivory,
                             height: 1.12,
                           ),
                         ),
                       ],
                     ),
-                    style: T.displayXl.copyWith(fontSize: 34, color: C.ivory),
+                    style: T.displayXl.copyWith(fontSize: 30, color: C.ivory),
                   ),
                 ),
                 const SizedBox(height: 28),
@@ -175,6 +175,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     children: [
                       EnsoButton(
                           label: tr('welcome.ctaLabel'),
+                          size: BtnSize.md,
                           variant: BtnVariant.ivory,
                           trailing: LucideIcons.arrowRight,
                           onTap: () => context.go('/onboarding'),
@@ -192,11 +193,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         children: [
                           TextButton(
                             onPressed: () => context.push('/legal/terms'),
-                            child: Text(tr('welcome.termsLabel')),
+                            child: Text(tr('welcome.termsLabel'), style: T.caption.s(11).copyWith(color: C.ivory.withValues(alpha: 0.8))),
                           ),
                           TextButton(
                             onPressed: () => context.push('/legal/privacy'),
-                            child: Text(tr('welcome.privacyShort')),
+                            child: Text(tr('welcome.privacyShort'), style: T.caption.s(11).copyWith(color: C.ivory.withValues(alpha: 0.8))),
                           ),
                         ],
                       ),
