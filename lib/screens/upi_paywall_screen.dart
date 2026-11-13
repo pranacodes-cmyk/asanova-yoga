@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -220,7 +219,6 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
     );
   }
 
-  double _coverMin(BuildContext context) => MediaQuery.sizeOf(context).height <= 640 ? 150 : 200;
 
   @override
   Widget build(BuildContext context) {
@@ -246,15 +244,17 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
               // legal terms sit just below the fold behind the CTA and are read by scrolling.
               builder: (context, bounds) => SingleChildScrollView(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  SizedBox(
-                    height: math.max(bounds.maxHeight, _coverMin(context) + 400),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: bounds.maxHeight),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                      Expanded(
-                        child: Stack(fit: StackFit.expand, children: [
-                          LayoutBuilder(builder: (context, frame) => Padding(
-                            padding: EdgeInsets.only(top: math.max(topInset(context), frame.maxHeight * 0.10)),
-                            child: const PaywallFilm(topAligned: true, india: true),
-                          )),
+                      ColoredBox(
+                        color: C.sand,
+                        child: Stack(children: [
+                          // 16:9 India film: full width just below the status bar, always shown whole.
+                          Padding(
+                            padding: EdgeInsets.only(top: topInset(context)),
+                            child: const AspectRatio(aspectRatio: 16 / 9, child: PaywallFilm(topAligned: true, india: true)),
+                          ),
                           if (upiCanClose(offer, widget.from)) Positioned(
                             top: topInset(context) + 6,
                             right: 16,
