@@ -45,8 +45,8 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
   @override
   void initState() {
     super.initState();
-    // Onboarding music keeps playing on the paywall; only narration stops.
-    Voice.stop();
+    // The India film carries its own voiceover, so onboarding music and narration stop here.
+    _stopOnboardingAudio();
     WidgetsBinding.instance.addObserver(this);
     AnalyticsService.event('paywall_viewed', {'variant': 'upi', 'from': widget.from});
     Market.offer().then((o) {
@@ -253,7 +253,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                         child: Stack(fit: StackFit.expand, children: [
                           LayoutBuilder(builder: (context, frame) => Padding(
                             padding: EdgeInsets.only(top: math.max(topInset(context), frame.maxHeight * 0.10)),
-                            child: const PaywallFilm(topAligned: true),
+                            child: const PaywallFilm(topAligned: true, india: true),
                           )),
                           if (upiCanClose(offer, widget.from)) Positioned(
                             top: topInset(context) + 6,

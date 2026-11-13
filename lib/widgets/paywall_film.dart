@@ -8,15 +8,18 @@ import '../theme/tokens.dart';
 /// frame matches what the cover crop shows on phones. Mirrors web PaywallFilm. The same film
 /// backs every paywall variant, including the exit offer.
 class PaywallFilm extends StatefulWidget {
-  const PaywallFilm({super.key, this.topAligned = false});
+  const PaywallFilm({super.key, this.topAligned = false, this.india = false});
   final bool topAligned;
+
+  /// India UPI paywall plays the Hindi marketing film with its voiceover.
+  final bool india;
   @override
   State<PaywallFilm> createState() => _PaywallFilmState();
 }
 
 class _PaywallFilmState extends State<PaywallFilm> {
   late final _controller = VideoPlayerController.asset(
-    'assets/video/paywall-studio.mp4',
+    widget.india ? 'assets/video/paywall-india.mp4' : 'assets/video/paywall-studio.mp4',
     videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
   );
   bool _ready = false;
@@ -27,7 +30,7 @@ class _PaywallFilmState extends State<PaywallFilm> {
     _controller
         .initialize()
         .then((_) async {
-          await _controller.setVolume(0);
+          await _controller.setVolume(widget.india ? 1 : 0);
           await _controller.setLooping(true);
           if (!mounted) return;
           setState(() => _ready = true);
@@ -53,7 +56,7 @@ class _PaywallFilmState extends State<PaywallFilm> {
       child: SizedBox.expand(
         child: _ready
             ? FittedBox(
-                fit: BoxFit.cover,
+                fit: widget.india ? BoxFit.contain : BoxFit.cover,
                 alignment: widget.topAligned ? Alignment.topCenter : Alignment.center,
                 clipBehavior: Clip.hardEdge,
                 child: SizedBox(
@@ -63,8 +66,8 @@ class _PaywallFilmState extends State<PaywallFilm> {
                 ),
               )
             : Image.asset(
-                'assets/images/paywall-studio.jpg',
-                fit: BoxFit.cover,
+                widget.india ? 'assets/images/paywall-india.jpg' : 'assets/images/paywall-studio.jpg',
+                fit: widget.india ? BoxFit.contain : BoxFit.cover,
                 alignment: widget.topAligned ? Alignment.topCenter : Alignment.center,
               ),
       ),
