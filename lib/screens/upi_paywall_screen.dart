@@ -45,7 +45,8 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
   @override
   void initState() {
     super.initState();
-    _stopOnboardingAudio();
+    // Onboarding music keeps playing on the paywall; only narration stops.
+    Voice.stop();
     WidgetsBinding.instance.addObserver(this);
     AnalyticsService.event('paywall_viewed', {'variant': 'upi', 'from': widget.from});
     Market.offer().then((o) {
@@ -63,7 +64,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
 
   @override
   void dispose() {
-    _stopOnboardingAudio();
+    if (!_backToOnboarding) _stopOnboardingAudio();
     WidgetsBinding.instance.removeObserver(this);
     _ref.dispose();
     super.dispose();
@@ -72,6 +73,19 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
   void _stopOnboardingAudio() {
     if (Ambient.state.value.key == 'music-bamboo') Ambient.stop();
     Voice.stop();
+  }
+
+  bool _backToOnboarding = false;
+
+  /// Android back from the onboarding paywall returns to the plan reveal, music still playing.
+  void _back() {
+    if (busy) return;
+    if (widget.from == 'onboarding') {
+      _backToOnboarding = true;
+      context.go('/plan-ready');
+    } else if (upiCanClose(offer, widget.from)) {
+      _leave();
+    }
   }
 
   void _leave() {
@@ -217,11 +231,11 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
       (LucideIcons.heartHandshake, tr('upi.benefitSafe')),
     ];
     final app = _app;
-    // Hard paywall (server-set, after onboarding only): Android back can't skip it either.
+    // Back never skips the onboarding paywall into the app; it returns to the plan reveal.
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && !busy && upiCanClose(offer, widget.from)) _leave();
+        if (!didPop) _back();
       },
       child: EnsoScaffold(
       body: Column(
@@ -251,16 +265,6 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(color: C.goldSoft, borderRadius: BorderRadius.circular(99)),
-                            child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              const Icon(LucideIcons.sparkles, size: 13, color: C.jadeDeep),
-                              const SizedBox(width: 5),
-                              Text(tr('upi.offerEyebrow'), style: T.label.s(12).copyWith(color: C.jadeDeep)),
-                            ]),
-                          ),
-                          const SizedBox(height: 8),
                           Text(tr('upi.heroTitle', {'trial': _trial}), style: T.displayMd.copyWith(fontSize: 21, height: 1.2)),
                           const SizedBox(height: 10),
                           for (final (icon, text) in benefits)

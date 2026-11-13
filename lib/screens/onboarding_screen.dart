@@ -30,7 +30,7 @@ const _onbVolume = 0.22;
 
 /// How long a reply stays when the coach isn't speaking it (web `REPLY_MS`).
 const _replyMs = 4000;
-const _replyMaxMs = 8000;
+const _replyMaxMs = 20000;
 const _replyMinMs = 3000;
 
 class OnboardingScreen extends StatefulWidget {
