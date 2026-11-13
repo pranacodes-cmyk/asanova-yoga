@@ -1189,6 +1189,9 @@ const indiaMonthlyPaise = 39900;
 /// Until the UPI provider is approved, tapping pay unlocks Plus for testing; flip to false before launch.
 const upiTestUnlock = true;
 
+/// India uses its own paid first-day offer; only global plan reveals advertise free course previews.
+bool showsFreePreview(bool india, bool premium) => !india && !premium;
+
 /// Most-used UPI apps first (NPCI share: PhonePe, Google Pay, Paytm, then bank/other apps).
 const upiAppPriority = ['com.phonepe.app', 'com.google.android.apps.nbu.paisa.user', 'net.one97.paytm', 'in.org.npci.upiapp', 'in.amazon.mShop.android.shopping', 'com.dreamplug.androidapp', 'com.mobikwik_new'];
 

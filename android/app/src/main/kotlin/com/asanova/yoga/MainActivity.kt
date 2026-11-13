@@ -26,15 +26,28 @@ class MainActivity : FlutterActivity() {
                     ))
                 }
                 "upiApps" -> {
-                    val probe = Intent(Intent.ACTION_VIEW, Uri.parse("upi://pay"))
+                    // Some apps require BROWSABLE or a populated pay URI; merge all valid handlers.
+                    // Discovery only: never launch these probes or create a payment here.
+                    val uris = listOf("upi://pay", "upi://pay?pa=discovery%40upi&pn=Asanova&am=1.00&cu=INR")
+                    val probes = uris.flatMap { uri ->
+                        listOf(Intent(Intent.ACTION_VIEW, Uri.parse(uri)),
+                            Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addCategory(Intent.CATEGORY_BROWSABLE))
+                    }
+                    val priority = listOf("com.phonepe.app", "com.google.android.apps.nbu.paisa.user",
+                        "net.one97.paytm", "in.org.npci.upiapp", "in.amazon.mShop.android.shopping",
+                        "com.dreamplug.androidapp", "com.mobikwik_new")
                     @Suppress("DEPRECATION")
-                    val apps = packageManager.queryIntentActivities(probe, 0).map {
+                    val handlers = probes.flatMap { packageManager.queryIntentActivities(it, 0) } +
+                        priority.flatMap { pkg -> probes.flatMap {
+                            packageManager.queryIntentActivities(Intent(it).setPackage(pkg), 0)
+                        } }
+                    val apps = handlers.distinctBy { it.activityInfo.packageName }.map {
                         mapOf(
                             "package" to it.activityInfo.packageName,
-                            "name" to it.loadLabel(packageManager).toString(),
-                            "icon" to iconPng(it.loadIcon(packageManager)),
+                            "name" to packageManager.getApplicationLabel(it.activityInfo.applicationInfo).toString(),
+                            "icon" to iconPng(packageManager.getApplicationIcon(it.activityInfo.applicationInfo)),
                         )
-                    }.distinctBy { it["package"] }
+                    }
                     result.success(apps)
                 }
                 "openUpi" -> {

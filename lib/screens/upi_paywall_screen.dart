@@ -162,7 +162,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
       context,
       builder: (sheet) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(tr('upi.payWith'), style: T.title.s(18)),
           for (final a in apps)
             Padding(
@@ -188,7 +188,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                 ),
               ),
             ),
-        ]),
+        ])),
       ),
     );
   }
@@ -221,10 +221,13 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       Expanded(
                         child: Stack(fit: StackFit.expand, children: [
-                          const PaywallFilm(),
-                          const Positioned(
+                          LayoutBuilder(builder: (context, frame) => Padding(
+                            padding: EdgeInsets.only(top: math.max(topInset(context), frame.maxHeight * 0.10)),
+                            child: const PaywallFilm(topAligned: true),
+                          )),
+                          Positioned(
                             left: 0, right: 0, bottom: 0, height: 64,
-                            child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x00F5EFE6), C.cream]))),
+                            child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [C.cream.withValues(alpha: 0), C.cream]))),
                           ),
                           if (upiCanClose(offer, widget.from)) Positioned(
                             top: topInset(context) + 6,
@@ -246,15 +249,15 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                             ]),
                           ),
                           const SizedBox(height: 8),
-                          Text(tr('upi.heroTitle', {'trial': _trial}), style: T.displayMd.copyWith(fontSize: 25, height: 1.12)),
-                          const SizedBox(height: 12),
+                          Text(tr('upi.heroTitle', {'trial': _trial}), style: T.displayMd.copyWith(fontSize: 23, height: 1.12)),
+                          const SizedBox(height: 10),
                           for (final (icon, text) in benefits)
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.only(bottom: 7),
                               child: Row(children: [
                                 Container(width: 26, height: 26, decoration: const BoxDecoration(color: C.jadeSoft, shape: BoxShape.circle), child: Icon(icon, size: 14, color: C.jadeDeep)),
                                 const SizedBox(width: 10),
-                                Expanded(child: Text(text, style: T.body.s(13).copyWith(fontWeight: FontWeight.w500, height: 1.2))),
+                                Expanded(child: Text(text, style: T.body.s(12).copyWith(fontWeight: FontWeight.w500, height: 1.25))),
                               ]),
                             ),
                           const SizedBox(height: 12),

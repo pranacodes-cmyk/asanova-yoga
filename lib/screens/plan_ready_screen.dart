@@ -13,6 +13,7 @@ import '../state/app_state.dart';
 import '../theme/text.dart';
 import '../theme/tokens.dart';
 import '../services/audio_service.dart';
+import '../services/market_service.dart';
 import '../widgets/confetti.dart';
 import '../widgets/scaffold.dart';
 import '../widgets/ui.dart';
@@ -423,7 +424,8 @@ class _Result extends StatelessWidget {
     final plan = Content.i.plan(planId)!;
     final premium = app.premium.active;
     // a Plus course says up front how many days are free; later days carry a lock
-    final freeDays = premium ? 0 : (plan.premium ? freeDayCount(plan) : 0);
+    final showFree = showsFreePreview(Market.india, premium);
+    final freeDays = showFree && plan.premium ? freeDayCount(plan) : 0;
     Map<String, String> labels(String step) => {
       for (final o in Content.i.step(step)?.options ?? const <OnbOption>[])
         o.id: o.label,
@@ -909,7 +911,7 @@ class _Result extends StatelessWidget {
                                         ),
                                       ),
                                     )
-                                  else if (plan.premium && !premium)
+                                  else if (plan.premium && showFree)
                                     _DayChip(tr('common.free')),
                                 ],
                               ),

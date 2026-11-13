@@ -8,7 +8,8 @@ import '../theme/tokens.dart';
 /// frame matches what the cover crop shows on phones. Mirrors web PaywallFilm. The same film
 /// backs every paywall variant, including the exit offer.
 class PaywallFilm extends StatefulWidget {
-  const PaywallFilm({super.key});
+  const PaywallFilm({super.key, this.topAligned = false});
+  final bool topAligned;
   @override
   State<PaywallFilm> createState() => _PaywallFilmState();
 }
@@ -53,6 +54,7 @@ class _PaywallFilmState extends State<PaywallFilm> {
         child: _ready
             ? FittedBox(
                 fit: BoxFit.cover,
+                alignment: widget.topAligned ? Alignment.topCenter : Alignment.center,
                 clipBehavior: Clip.hardEdge,
                 child: SizedBox(
                   width: _controller.value.size.width,
@@ -63,6 +65,7 @@ class _PaywallFilmState extends State<PaywallFilm> {
             : Image.asset(
                 'assets/images/paywall-studio.jpg',
                 fit: BoxFit.cover,
+                alignment: widget.topAligned ? Alignment.topCenter : Alignment.center,
               ),
       ),
     ),

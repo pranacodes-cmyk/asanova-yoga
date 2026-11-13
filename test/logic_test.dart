@@ -1398,6 +1398,11 @@ void main() {
   });
 
   group('India market', () {
+    test('India plan reveal never advertises a free course preview; global keeps it', () {
+      expect(showsFreePreview(true, false), isFalse);
+      expect(showsFreePreview(false, false), isTrue);
+      expect(showsFreePreview(false, true), isFalse);
+    });
     test('SIM country wins over device region', () {
       expect(isIndiaMarket(simCountry: 'in', region: 'US'), isTrue);
       expect(isIndiaMarket(simCountry: 'US', region: 'IN'), isFalse);
@@ -1432,6 +1437,10 @@ void main() {
     test('UPI apps: PhonePe, Google Pay, Paytm first; unknown apps after, in phone order', () {
       final got = sortUpiApps(['com.bank.x', 'net.one97.paytm', 'com.google.android.apps.nbu.paisa.user', 'com.bank.y', 'com.phonepe.app'], (p) => p);
       expect(got, ['com.phonepe.app', 'com.google.android.apps.nbu.paisa.user', 'net.one97.paytm', 'com.bank.x', 'com.bank.y']);
+    });
+    test('Amazon is not selected ahead of installed PhonePe, Google Pay or Paytm', () {
+      final got = sortUpiApps(['in.amazon.mShop.android.shopping', 'net.one97.paytm', 'com.google.android.apps.nbu.paisa.user', 'com.phonepe.app'], (p) => p);
+      expect(got, ['com.phonepe.app', 'com.google.android.apps.nbu.paisa.user', 'net.one97.paytm', 'in.amazon.mShop.android.shopping']);
     });
     test('UPI access only while trial/active and paid', () {
       final now = DateTime.utc(2026, 11, 12, 10);
