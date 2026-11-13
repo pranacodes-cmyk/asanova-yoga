@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../logic/logic.dart';
+import 'meta_events.dart';
 
 /// Which market the phone is in (SIM first, see `isIndiaMarket`) plus the India UPI plumbing:
 /// installed UPI apps, the Easebuzz checkout and access lookup by Android ID (no login).
@@ -79,7 +80,12 @@ class Market {
   }
 
   /// `{configured, txnid, payUrl}` or null when the network/server failed.
-  static Future<Map<String, dynamic>?> checkout() => _post('checkout', {});
+  /// Meta's anonymous id goes along only while Usage statistics is on ([MetaEvents.anonymousId]
+  /// returns null otherwise), so the server can report the confirmed ₹ trial/renewal to Meta.
+  static Future<Map<String, dynamic>?> checkout() async {
+    final anon = await MetaEvents.anonymousId();
+    return _post('checkout', {'metaAnonId': ?anon});
+  }
 
   /// True when this phone (or, with [reference], the paid UTR/mandate) has Plus right now.
   static Future<bool> hasAccess({String? reference}) async {

@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 ///   OFF; [configure] switches them on at runtime only while Profile → Privacy → Usage statistics
 ///   is on (and, on iOS, advertiser tracking only when App Tracking Transparency is authorised).
 /// - Trials and purchases are NOT logged here: RevenueCat's Meta integration is the single sender
+///   (India UPI trials/renewals are sent by the server after the provider confirms payment)
 ///   of StartTrial / Purchase, so revenue is never double counted.
 /// - Only funnel events with no health meaning are sent (install/open, onboarding completed,
 ///   paywall viewed, checkout started). Never screen names, answers, names or practice details.

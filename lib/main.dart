@@ -59,7 +59,8 @@ Future<void> main() async {
   Haptics.enabled = app.audio.haptics;
   unawaited(
     PurchaseService.syncEntitlement(
-      isActive: () => app.premium.active,
+      // UPI Plus is owned by our server, not the store: RevenueCat must never revoke it.
+      isActive: () => app.premium.active && app.premium.plan != 'upiMonthly',
       grant: app.setPremium,
       revoke: app.cancelPremium,
     ),
