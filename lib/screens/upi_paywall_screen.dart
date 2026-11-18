@@ -263,32 +263,32 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                         ]),
                       ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(tr('upi.heroTitle', {'trial': _trial}), style: T.displayMd.copyWith(fontSize: 21, height: 1.2)),
-                          const SizedBox(height: 10),
+                          Text(tr('upi.heroTitle', {'trial': _trial}), style: T.displayMd.copyWith(fontSize: 26, height: 1.2)),
+                          const SizedBox(height: 24),
                           for (final (icon, text) in benefits)
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 7),
+                              padding: const EdgeInsets.only(bottom: 16),
                               child: Row(children: [
-                                Container(width: 26, height: 26, decoration: const BoxDecoration(color: C.jadeSoft, shape: BoxShape.circle), child: Icon(icon, size: 14, color: C.jadeDeep)),
-                                const SizedBox(width: 10),
-                                Expanded(child: Text(text, style: T.body.s(12).copyWith(fontWeight: FontWeight.w500, height: 1.25))),
+                                Container(width: 34, height: 34, decoration: const BoxDecoration(color: C.jadeSoft, shape: BoxShape.circle), child: Icon(icon, size: 18, color: C.jadeDeep)),
+                                const SizedBox(width: 12),
+                                Expanded(child: Text(text, style: T.body.s(15).copyWith(fontWeight: FontWeight.w500, height: 1.3))),
                               ]),
                             ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            decoration: BoxDecoration(color: C.jadeSoft, border: Border.all(color: C.jade, width: 2), borderRadius: BorderRadius.circular(20)),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            decoration: BoxDecoration(color: C.jadeSoft, border: Border.all(color: C.jade, width: 2), borderRadius: BorderRadius.circular(22)),
                             child: Row(children: [
                               Expanded(
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(tr('paywall.plusBadge'), style: T.tiny.copyWith(fontSize: 11, letterSpacing: 1, fontWeight: FontWeight.w700, color: C.jadeDeep)),
+                                  Text(tr('paywall.plusBadge'), style: T.tiny.copyWith(fontSize: 13, letterSpacing: 1, fontWeight: FontWeight.w700, color: C.jadeDeep)),
                                   const SizedBox(height: 4),
                                   Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                                    Text(_trial, style: T.displayMd.copyWith(fontSize: 30, height: 1, fontWeight: FontWeight.w800, color: C.jadeDeep)),
+                                    Text(_trial, style: T.displayMd.copyWith(fontSize: 38, height: 1, fontWeight: FontWeight.w800, color: C.jadeDeep)),
                                     const SizedBox(width: 6),
-                                    Text(tr('upi.today'), style: T.label.s(13)),
+                                    Text(tr('upi.today'), style: T.label.s(16)),
                                   ]),
                                   if (offer.showMonthlyLine) ...[
                                     const SizedBox(height: 4),
@@ -296,7 +296,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                                   ],
                                 ]),
                               ),
-                              const Icon(LucideIcons.circleCheck, color: C.jade, size: 26),
+                              const Icon(LucideIcons.circleCheck, color: C.jade, size: 30),
                             ]),
                           ),
                         ]),
