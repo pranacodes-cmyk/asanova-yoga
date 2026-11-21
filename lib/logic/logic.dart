@@ -1219,16 +1219,21 @@ List<T> sortUpiApps<T>(List<T> apps, String Function(T) packageOf) {
 
 /// Live India offer (server table `upi_offer`, changeable without a new build).
 class UpiOffer {
-  const UpiOffer({required this.trialPaise, required this.trialDays, required this.monthlyPaise, required this.showMonthlyLine, this.showClose = true});
+  const UpiOffer({required this.trialPaise, required this.trialDays, required this.monthlyPaise, required this.showMonthlyLine, this.showClose = true, this.layout = 'fit'});
   final int trialPaise;
   final int trialDays;
   final int monthlyPaise;
   final bool showMonthlyLine;
   final bool showClose;
+  /// India paywall design: 'fit' = offer on the first screen, 'scroll' = price/disclaimer below the fold.
+  final String layout;
 }
 
 /// The recurring amount must remain visible before payment, including when offline.
-const upiOfferDefault = UpiOffer(trialPaise: indiaTrialPaise, trialDays: indiaTrialDays, monthlyPaise: indiaMonthlyPaise, showMonthlyLine: true, showClose: false);
+/// Server may set the India monthly price anywhere from ₹99 to ₹999; anything else keeps the default.
+const upiMonthlyMinPaise = 9900;
+const upiMonthlyMaxPaise = 99900;
+const upiOfferDefault = UpiOffer(trialPaise: indiaTrialPaise, trialDays: indiaTrialDays, monthlyPaise: indiaMonthlyPaise, showMonthlyLine: true, showClose: false, layout: 'fit');
 
 /// Reads the server's offer field by field; anything missing or invalid keeps the default.
 UpiOffer parseUpiOffer(Object? raw) {
@@ -1239,9 +1244,10 @@ UpiOffer parseUpiOffer(Object? raw) {
   return UpiOffer(
     trialPaise: n(r['trialPaise'], 100, 10000000, d.trialPaise),
     trialDays: n(r['trialDays'], 1, 31, d.trialDays),
-    monthlyPaise: n(r['monthlyPaise'], 100, 10000000, d.monthlyPaise),
+    monthlyPaise: n(r['monthlyPaise'], upiMonthlyMinPaise, upiMonthlyMaxPaise, d.monthlyPaise),
     showMonthlyLine: show is bool ? show : d.showMonthlyLine,
     showClose: r['showClose'] is bool ? r['showClose'] as bool : d.showClose,
+    layout: r['layout'] == 'scroll' || r['layout'] == 'fit' ? r['layout'] as String : d.layout,
   );
 }
 

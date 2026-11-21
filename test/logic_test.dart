@@ -1449,9 +1449,16 @@ void main() {
       String s(UpiOffer o) => '${o.trialPaise},${o.trialDays},${o.monthlyPaise},${o.showMonthlyLine}';
       expect(s(parseUpiOffer(null)), '200,1,39900,true');
       expect(s(parseUpiOffer({'trialPaise': 900, 'monthlyPaise': 29900, 'showMonthlyLine': true})), '900,1,29900,true');
+      // Monthly price can be set from ₹99 to ₹999; outside that the default ₹399 stays.
+      expect(parseUpiOffer({'monthlyPaise': 9900}).monthlyPaise, 9900);
+      expect(parseUpiOffer({'monthlyPaise': 99900}).monthlyPaise, 99900);
+      expect(parseUpiOffer({'monthlyPaise': 9800}).monthlyPaise, 39900);
+      expect(parseUpiOffer({'monthlyPaise': 100000}).monthlyPaise, 39900);
       expect(s(parseUpiOffer({'trialPaise': -5, 'trialDays': 99, 'showMonthlyLine': 'yes'})), '200,1,39900,true');
     });
     test('India hard paywall: close hidden only after onboarding and only when the server turns it off', () {
+      expect(parseUpiOffer({'layout': 'scroll'}).layout, 'scroll');
+      expect(parseUpiOffer({'layout': 'weird'}).layout, 'fit');
       final hard = parseUpiOffer({'showClose': false});
       expect(upiCanClose(hard, 'onboarding'), isFalse);
       expect(upiCanClose(hard, 'course'), isTrue);

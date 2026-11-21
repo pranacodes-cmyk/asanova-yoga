@@ -219,6 +219,46 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
   }
 
 
+  bool get scroll => offer.layout == 'scroll';
+
+  Widget _benefit(IconData icon, String text, bool wide) => Container(
+        constraints: BoxConstraints(minHeight: wide ? 0 : 60),
+        padding: EdgeInsets.symmetric(horizontal: wide ? 16 : 12, vertical: wide ? 14 : 10),
+        decoration: BoxDecoration(color: C.ivory, border: Border.all(color: C.line), borderRadius: BorderRadius.circular(16)),
+        child: Row(children: [
+          Container(width: wide ? 36 : 32, height: wide ? 36 : 32, decoration: const BoxDecoration(color: C.jadeSoft, shape: BoxShape.circle), child: Icon(icon, size: 16, color: C.jadeDeep)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: T.body.s(wide ? 14 : 12).copyWith(fontWeight: FontWeight.w600, height: 1.35))),
+        ]),
+      );
+
+  Widget _priceCard() => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: C.jadeSoft, border: Border.all(color: C.jade), borderRadius: BorderRadius.circular(12)),
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(tr('paywall.plusBadge'), style: T.tiny.copyWith(fontSize: 11, letterSpacing: 0, fontWeight: FontWeight.w700, color: C.jadeDeep)),
+              const SizedBox(height: 4),
+              Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                Text(_trial, style: T.displayMd.copyWith(fontSize: 30, height: 1, fontWeight: FontWeight.w800, color: C.jadeDeep)),
+                const SizedBox(width: 6),
+                Text(tr('upi.today'), style: T.label.s(13)),
+              ]),
+            ]),
+          ),
+          const Icon(LucideIcons.circleCheck, color: C.jade, size: 24),
+        ]),
+      );
+
+  Widget _legalLink(String label, VoidCallback? onTap) => Pressable(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Text(label, style: T.label.s(11).copyWith(color: C.muted, decoration: TextDecoration.underline)),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final benefits = [
@@ -239,14 +279,13 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
         children: [
           Expanded(
             child: LayoutBuilder(
-              // First screen fills exactly: the film takes the spare height, so no empty gap; the
-              // legal terms sit just below the fold behind the CTA and are read by scrolling.
+              // Server `layout`: fit = offer fills the first screen; scroll = price sits below the fold.
+              // Legal terms always sit just below the fold behind the CTA and are read by scrolling.
               builder: (context, bounds) => SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: bounds.maxHeight),
-                  child: IntrinsicHeight(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: bounds.maxHeight),
+                    child: IntrinsicHeight(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       ColoredBox(
                         color: C.sand,
                         child: Stack(children: [
@@ -263,64 +302,42 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                         ]),
                       ),
                       Expanded(child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
-                        child: Column(mainAxisAlignment: MainAxisAlignment.spaceEvenly, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+                        child: Column(mainAxisAlignment: MainAxisAlignment.spaceEvenly, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                           Text(tr('upi.heroTitle', {'trial': _trial}), style: T.displayMd.copyWith(fontSize: 20, height: 1.3)),
-                          const SizedBox(height: 14),
-                          Wrap(spacing: 12, runSpacing: 10, children: [
+                          const SizedBox(height: 12),
+                          Wrap(spacing: 8, runSpacing: 8, children: [
                             for (final (icon, text) in benefits)
-                              SizedBox(width: (bounds.maxWidth - 52) / 2, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Container(width: 24, height: 24, decoration: const BoxDecoration(color: C.jadeSoft, shape: BoxShape.circle), child: Icon(icon, size: 14, color: C.jadeDeep)),
-                                const SizedBox(width: 8),
-                                Expanded(child: Text(text, style: T.body.s(12).copyWith(fontWeight: FontWeight.w500, height: 1.4))),
-                              ])),
+                              SizedBox(width: scroll ? bounds.maxWidth - 40 : (bounds.maxWidth - 48) / 2, child: _benefit(icon, text, scroll)),
                           ]),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(color: C.jadeSoft, border: Border.all(color: C.jade), borderRadius: BorderRadius.circular(12)),
-                            child: Row(children: [
-                              Expanded(
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(tr('paywall.plusBadge'), style: T.tiny.copyWith(fontSize: 11, letterSpacing: 0, fontWeight: FontWeight.w700, color: C.jadeDeep)),
-                                  const SizedBox(height: 4),
-                                  Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                                    Text(_trial, style: T.displayMd.copyWith(fontSize: 30, height: 1, fontWeight: FontWeight.w800, color: C.jadeDeep)),
-                                    const SizedBox(width: 6),
-                                    Text(tr('upi.today'), style: T.label.s(13)),
-                                  ]),
-                                ]),
-                              ),
-                              const Icon(LucideIcons.circleCheck, color: C.jade, size: 24),
-                            ]),
-                          ),
+                          if (!scroll) ...[
+                            const SizedBox(height: 12),
+                            _priceCard(),
+                            const SizedBox(height: 8),
+                            Text(tr('upi.terms', {'trial': _trial, 'price': _price}), textAlign: TextAlign.center, style: T.tiny.s(11).copyWith(height: 1.45)),
+                          ],
                         ]),
                       )),
-                    ]),
+                    ])),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-                    child: Column(children: [
-                      Text(tr('upi.terms', {'trial': _trial, 'price': _price}), textAlign: TextAlign.center, style: T.tiny.s(11).copyWith(height: 1.45)),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      if (scroll) ...[
+                        _priceCard(),
+                        const SizedBox(height: 10),
+                        Text(tr('upi.terms', {'trial': _trial, 'price': _price}), textAlign: TextAlign.center, style: T.tiny.s(11).copyWith(height: 1.45)),
+                        const SizedBox(height: 4),
+                      ],
                       Wrap(alignment: WrapAlignment.center, children: [
-                        TextButton(
-                          onPressed: () => context.push('/legal/pricing'),
-                          child: Text(tr('paywall.pricing'), style: T.label.s(11).copyWith(color: C.muted)),
-                        ),
+                        _legalLink(tr('paywall.pricing'), () => context.push('/legal/pricing')),
                         for (final doc in const ['terms', 'privacy'])
-                          TextButton(
-                            onPressed: () => context.push('/legal/$doc'),
-                            child: Text(tr(doc == 'terms' ? 'paywall.termsOfUse' : 'paywall.privacyPolicy'), style: T.label.s(11).copyWith(color: C.muted)),
-                          ),
-                        TextButton(
-                          onPressed: busy ? null : _openRestore,
-                          child: Text(tr('paywall.restorePurchase'), style: T.label.s(11).copyWith(color: C.muted)),
-                        ),
+                          _legalLink(tr(doc == 'terms' ? 'paywall.termsOfUse' : 'paywall.privacyPolicy'), () => context.push('/legal/$doc')),
+                        _legalLink(tr('paywall.restorePurchase'), busy ? null : _openRestore),
                       ]),
                     ]),
                   ),
-                ])),
-                ),
+                ]),
               ),
             ),
           ),
@@ -352,12 +369,6 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                 ),
                 const SizedBox(height: 8),
                 EnsoButton(label: busy ? tr('upi.checking') : tr('upi.cta', {'trial': _trial}), size: BtnSize.md, loading: busy, onTap: busy ? null : _pay),
-                const SizedBox(height: 6),
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Icon(LucideIcons.lock, color: C.jadeDeep, size: 13),
-                  const SizedBox(width: 6),
-                  Flexible(child: Text(tr('upi.thenLine', {'price': _price}), textAlign: TextAlign.center, style: T.caption.s(11).copyWith(height: 1.35))),
-                ]),
               ]),
             ),
           ),
