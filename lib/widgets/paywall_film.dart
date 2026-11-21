@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../i18n/i18n.dart';
 import '../theme/tokens.dart';
+import '../services/audio_service.dart';
+import 'ui.dart';
 
 /// Full-bleed portrait tutor film (seamless ping-pong loop) for the paywall cover; the tall
 /// frame matches what the cover crop shows on phones. Mirrors web PaywallFilm. The same film
@@ -20,9 +23,10 @@ class PaywallFilm extends StatefulWidget {
 class _PaywallFilmState extends State<PaywallFilm> {
   late final _controller = VideoPlayerController.asset(
     widget.india ? 'assets/video/paywall-india.mp4' : 'assets/video/paywall-studio.mp4',
-    videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    videoPlayerOptions: VideoPlayerOptions(mixWithOthers: !widget.india),
   );
   bool _ready = false;
+  bool _muted = false;
 
   @override
   void initState() {
@@ -30,6 +34,8 @@ class _PaywallFilmState extends State<PaywallFilm> {
     _controller
         .initialize()
         .then((_) async {
+          if (widget.india) await Voice.stop();
+          if (!mounted) return;
           await _controller.setVolume(widget.india ? 1 : 0);
           await _controller.setLooping(true);
           if (!mounted) return;
@@ -53,7 +59,7 @@ class _PaywallFilmState extends State<PaywallFilm> {
     image: true,
     child: ColoredBox(
       color: C.sand,
-      child: SizedBox.expand(
+      child: Stack(children: [SizedBox.expand(
         child: _ready
             ? FittedBox(
                 fit: widget.india ? BoxFit.contain : BoxFit.cover,
@@ -71,6 +77,23 @@ class _PaywallFilmState extends State<PaywallFilm> {
                 alignment: widget.topAligned ? Alignment.topCenter : Alignment.center,
               ),
       ),
+        if (widget.india && _ready) Positioned(
+          bottom: 8,
+          right: 8,
+          child: CircleBtn(
+            icon: _muted ? LucideIcons.volumeX : LucideIcons.volume2,
+            label: tr(_muted ? 'onbExperience.turnOnSound' : 'onbExperience.muteSound'),
+            size: 32,
+            iconSize: 16,
+            tone: Tone.dark,
+            onTap: () async {
+              await _controller.setVolume(_muted ? 1 : 0);
+              await _controller.play();
+              if (mounted) setState(() => _muted = !_muted);
+            },
+          ),
+        ),
+      ]),
     ),
   );
 }

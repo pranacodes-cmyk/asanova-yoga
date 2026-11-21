@@ -1190,8 +1190,12 @@ bool showsOnboardingChapter(String section, bool india) =>
 const indiaTrialPaise = 200;
 const indiaTrialDays = 1;
 const indiaMonthlyPaise = 39900;
-/// Until the UPI provider is approved, tapping pay unlocks Plus for testing; flip to false before launch.
-const upiTestUnlock = true;
+/// Production never grants access merely because somebody tapped Pay.
+const upiTestUnlock = false;
+
+/// One default-off switch gates the entire India funnel, not just its paywall.
+bool usesIndiaFlow(bool detectedIndia, Object? config) =>
+    detectedIndia && config is Map && config['indiaEnabled'] == true;
 
 /// India uses its own paid first-day offer; only global plan reveals advertise free course previews.
 bool showsFreePreview(bool india, bool premium) => !india && !premium;
@@ -1223,8 +1227,8 @@ class UpiOffer {
   final bool showClose;
 }
 
-/// Until the server answers, keep onboarding closed and the monthly card line hidden.
-const upiOfferDefault = UpiOffer(trialPaise: indiaTrialPaise, trialDays: indiaTrialDays, monthlyPaise: indiaMonthlyPaise, showMonthlyLine: false, showClose: false);
+/// The recurring amount must remain visible before payment, including when offline.
+const upiOfferDefault = UpiOffer(trialPaise: indiaTrialPaise, trialDays: indiaTrialDays, monthlyPaise: indiaMonthlyPaise, showMonthlyLine: true, showClose: false);
 
 /// Reads the server's offer field by field; anything missing or invalid keeps the default.
 UpiOffer parseUpiOffer(Object? raw) {

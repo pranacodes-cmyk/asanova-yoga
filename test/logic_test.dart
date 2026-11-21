@@ -1398,6 +1398,17 @@ void main() {
   });
 
   group('India market', () {
+    test('India switch defaults off and keeps the full normal funnel', () {
+      for (final config in [null, {}, {'indiaEnabled': false}, {'indiaEnabled': 'true'}]) {
+        expect(usesIndiaFlow(true, config), isFalse);
+        expect(languagesFor(usesIndiaFlow(true, config)).length, 8);
+        expect(onboardingStepsFor(Content.i.onboarding, usesIndiaFlow(true, config), (s) => s.id), Content.i.onboarding);
+      }
+    });
+    test('enabled India switch never changes the foreign funnel', () {
+      expect(usesIndiaFlow(true, {'indiaEnabled': true}), isTrue);
+      expect(usesIndiaFlow(false, {'indiaEnabled': true}), isFalse);
+    });
     test('India plan reveal never advertises a free course preview; global keeps it', () {
       expect(showsFreePreview(true, false), isFalse);
       expect(showsFreePreview(false, false), isTrue);
@@ -1434,11 +1445,11 @@ void main() {
     test('2 rupees for one day, then 399 a month', () {
       expect([indiaTrialPaise, indiaTrialDays, indiaMonthlyPaise], [200, 1, 39900]);
     });
-    test('India offer: monthly line hidden by default, server values win, bad values fall back', () {
+    test('India offer: actual recurring price visible by default, server prices win', () {
       String s(UpiOffer o) => '${o.trialPaise},${o.trialDays},${o.monthlyPaise},${o.showMonthlyLine}';
-      expect(s(parseUpiOffer(null)), '200,1,39900,false');
+      expect(s(parseUpiOffer(null)), '200,1,39900,true');
       expect(s(parseUpiOffer({'trialPaise': 900, 'monthlyPaise': 29900, 'showMonthlyLine': true})), '900,1,29900,true');
-      expect(s(parseUpiOffer({'trialPaise': -5, 'trialDays': 99, 'showMonthlyLine': 'yes'})), '200,1,39900,false');
+      expect(s(parseUpiOffer({'trialPaise': -5, 'trialDays': 99, 'showMonthlyLine': 'yes'})), '200,1,39900,true');
     });
     test('India hard paywall: close hidden only after onboarding and only when the server turns it off', () {
       final hard = parseUpiOffer({'showClose': false});
@@ -1463,7 +1474,7 @@ void main() {
       expect(upiAccessActive(null, null, now), isFalse);
     });
   });
-  test('India UPI test unlock is on until the provider is approved', () {
-    expect(upiTestUnlock, isTrue);
+  test('Production never grants Plus without a verified payment', () {
+    expect(upiTestUnlock, isFalse);
   });
 }

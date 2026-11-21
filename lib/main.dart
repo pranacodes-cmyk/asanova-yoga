@@ -36,7 +36,11 @@ Future<void> main() async {
   await PurchaseService.init();
   await Market.init();
   final app = await AppState.load();
-  // India UPI plan: the server knows this phone (Android ID), so a reinstall restores Plus.
+  // Retire old test unlocks: UPI access requires server verification even if the funnel is OFF.
+  if (app.premium.plan == 'upiMonthly') {
+    final verified = await Market.hasAccess();
+    if (!verified) app.cancelPremium();
+  }
   if (Market.india) {
     Market.hasAccess().then((ok) {
       if (ok && !app.premium.active) app.setPremium('upiMonthly');

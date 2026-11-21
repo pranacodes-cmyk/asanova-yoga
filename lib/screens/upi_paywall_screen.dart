@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
-import '../data/content.dart';
 import '../i18n/i18n.dart';
 import '../logic/logic.dart';
 import '../services/analytics_service.dart';
@@ -105,7 +104,10 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
       await Future<void>.delayed(const Duration(seconds: 2));
       if (!mounted) return;
     }
-    if (mounted) setState(() => busy = false);
+    if (mounted) {
+      setState(() { busy = false; waiting = false; });
+      Toast.show(tr('common.tryAgain'));
+    }
   }
 
   void _unlocked() {
@@ -119,12 +121,6 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
     if (busy) return;
     setState(() => busy = true);
     AnalyticsService.event('purchase_started', {'plan': 'upiMonthly', 'variant': 'upi', 'from': widget.from});
-    if (upiTestUnlock) {
-      await Future<void>.delayed(const Duration(milliseconds: 1400));
-      if (!mounted) return;
-      Toast.show(tr('upi.testMode'));
-      return _unlocked();
-    }
     final r = await Market.checkout();
     if (!mounted) return;
     final url = r?['payUrl'] as String?;
@@ -135,7 +131,10 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
     }
     waiting = true;
     final opened = await Market.openUpi(url, picked);
-    if (mounted) setState(() => busy = opened);
+    if (mounted) {
+      setState(() { busy = false; waiting = opened; });
+      if (!opened) Toast.show(tr('common.tryAgain'));
+    }
   }
 
   Future<void> _restore() async {
@@ -223,8 +222,8 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
   @override
   Widget build(BuildContext context) {
     final benefits = [
-      (LucideIcons.layers, tr('paywall.progressiveCourses', {'n': Content.i.plans.where((p) => p.days.length > 1).length})),
-      (LucideIcons.moon, tr('paywall.guidedMeditations', {'n': Content.i.meditations.length})),
+      (LucideIcons.layers, tr('upi.benefitCourses')),
+      (LucideIcons.moon, tr('upi.benefitMeditate')),
       (LucideIcons.leaf, tr('paywall.styles')),
       (LucideIcons.heartHandshake, tr('upi.benefitSafe')),
     ];
@@ -245,7 +244,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
               builder: (context, bounds) => SingleChildScrollView(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: bounds.maxHeight),
+                    constraints: const BoxConstraints(minHeight: 0),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       ColoredBox(
                         color: C.sand,
@@ -263,42 +262,41 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                         ]),
                       ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(tr('upi.heroTitle', {'trial': _trial}), style: T.displayMd.copyWith(fontSize: 26, height: 1.2)),
-                          const SizedBox(height: 24),
-                          for (final (icon, text) in benefits)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: Row(children: [
-                                Container(width: 34, height: 34, decoration: const BoxDecoration(color: C.jadeSoft, shape: BoxShape.circle), child: Icon(icon, size: 18, color: C.jadeDeep)),
-                                const SizedBox(width: 12),
-                                Expanded(child: Text(text, style: T.body.s(15).copyWith(fontWeight: FontWeight.w500, height: 1.3))),
-                              ]),
-                            ),
+                          Text(tr('upi.heroTitle', {'trial': _trial}), style: T.displayMd.copyWith(fontSize: 20, height: 1.3)),
+                          const SizedBox(height: 14),
+                          LayoutBuilder(builder: (context, area) => Wrap(spacing: 12, runSpacing: 10, children: [
+                            for (final (icon, text) in benefits)
+                              SizedBox(width: (area.maxWidth - 12) / 2, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Container(width: 24, height: 24, decoration: const BoxDecoration(color: C.jadeSoft, shape: BoxShape.circle), child: Icon(icon, size: 14, color: C.jadeDeep)),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text(text, style: T.body.s(12).copyWith(fontWeight: FontWeight.w500, height: 1.4))),
+                              ])),
+                          ])),
                           const SizedBox(height: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                            decoration: BoxDecoration(color: C.jadeSoft, border: Border.all(color: C.jade, width: 2), borderRadius: BorderRadius.circular(22)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(color: C.jadeSoft, border: Border.all(color: C.jade), borderRadius: BorderRadius.circular(12)),
                             child: Row(children: [
                               Expanded(
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(tr('paywall.plusBadge'), style: T.tiny.copyWith(fontSize: 13, letterSpacing: 1, fontWeight: FontWeight.w700, color: C.jadeDeep)),
+                                  Text(tr('paywall.plusBadge'), style: T.tiny.copyWith(fontSize: 11, letterSpacing: 0, fontWeight: FontWeight.w700, color: C.jadeDeep)),
                                   const SizedBox(height: 4),
                                   Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                                    Text(_trial, style: T.displayMd.copyWith(fontSize: 38, height: 1, fontWeight: FontWeight.w800, color: C.jadeDeep)),
+                                    Text(_trial, style: T.displayMd.copyWith(fontSize: 30, height: 1, fontWeight: FontWeight.w800, color: C.jadeDeep)),
                                     const SizedBox(width: 6),
-                                    Text(tr('upi.today'), style: T.label.s(16)),
+                                    Text(tr('upi.today'), style: T.label.s(13)),
                                   ]),
-                                  if (offer.showMonthlyLine) ...[
-                                    const SizedBox(height: 4),
-                                    Text(tr('upi.thenLine', {'price': _price}), style: T.caption.s(12)),
-                                  ],
                                 ]),
                               ),
-                              const Icon(LucideIcons.circleCheck, color: C.jade, size: 30),
+                              const Icon(LucideIcons.circleCheck, color: C.jade, size: 24),
                             ]),
                           ),
+                          const SizedBox(height: 12),
+                          Text(tr('paywall.subscriptionPlan'), style: T.label.s(12)),
+                          const SizedBox(height: 4),
+                          Text(tr('upi.thenLine', {'price': _price}), style: T.body.s(13).copyWith(height: 1.4)),
                         ]),
                       ),
                     ]),
@@ -306,7 +304,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
                     child: Column(children: [
-                      Text(tr('upi.terms', {'trial': _trial, 'price': _price}), textAlign: TextAlign.center, style: T.tiny.s(11)),
+                      Text(tr('upi.terms', {'trial': _trial, 'price': _price}), textAlign: TextAlign.center, style: T.tiny.s(11).copyWith(height: 1.45)),
                       Wrap(alignment: WrapAlignment.center, children: [
                         for (final doc in const ['terms', 'privacy'])
                           TextButton(
@@ -356,7 +354,7 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Icon(LucideIcons.lock, color: C.jadeDeep, size: 13),
                   const SizedBox(width: 6),
-                  Flexible(child: Text(tr('upi.secureLine'), style: T.caption.s(11))),
+                  Flexible(child: Text(tr('upi.thenLine', {'price': _price}), textAlign: TextAlign.center, style: T.caption.s(11).copyWith(height: 1.35))),
                 ]),
               ]),
             ),
