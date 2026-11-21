@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/services/legal_service.dart';
+import 'package:enso/services/legal_service.dart';
 
 void main() {
   test('accepts complete server document', () {
