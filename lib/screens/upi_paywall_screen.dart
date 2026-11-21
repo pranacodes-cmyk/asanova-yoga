@@ -242,9 +242,10 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
               // First screen fills exactly: the film takes the spare height, so no empty gap; the
               // legal terms sit just below the fold behind the CTA and are read by scrolling.
               builder: (context, bounds) => SingleChildScrollView(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 0),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: bounds.maxHeight),
+                  child: IntrinsicHeight(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       ColoredBox(
                         color: C.sand,
@@ -261,19 +262,19 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                           ),
                         ]),
                       ),
-                      Padding(
+                      Expanded(child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        child: Column(mainAxisAlignment: MainAxisAlignment.spaceEvenly, crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(tr('upi.heroTitle', {'trial': _trial}), style: T.displayMd.copyWith(fontSize: 20, height: 1.3)),
                           const SizedBox(height: 14),
-                          LayoutBuilder(builder: (context, area) => Wrap(spacing: 12, runSpacing: 10, children: [
+                          Wrap(spacing: 12, runSpacing: 10, children: [
                             for (final (icon, text) in benefits)
-                              SizedBox(width: (area.maxWidth - 12) / 2, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              SizedBox(width: (bounds.maxWidth - 52) / 2, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Container(width: 24, height: 24, decoration: const BoxDecoration(color: C.jadeSoft, shape: BoxShape.circle), child: Icon(icon, size: 14, color: C.jadeDeep)),
                                 const SizedBox(width: 8),
                                 Expanded(child: Text(text, style: T.body.s(12).copyWith(fontWeight: FontWeight.w500, height: 1.4))),
                               ])),
-                          ])),
+                          ]),
                           const SizedBox(height: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -293,12 +294,8 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                               const Icon(LucideIcons.circleCheck, color: C.jade, size: 24),
                             ]),
                           ),
-                          const SizedBox(height: 12),
-                          Text(tr('paywall.subscriptionPlan'), style: T.label.s(12)),
-                          const SizedBox(height: 4),
-                          Text(tr('upi.thenLine', {'price': _price}), style: T.body.s(13).copyWith(height: 1.4)),
                         ]),
-                      ),
+                      )),
                     ]),
                   ),
                   Padding(
@@ -306,6 +303,10 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                     child: Column(children: [
                       Text(tr('upi.terms', {'trial': _trial, 'price': _price}), textAlign: TextAlign.center, style: T.tiny.s(11).copyWith(height: 1.45)),
                       Wrap(alignment: WrapAlignment.center, children: [
+                        TextButton(
+                          onPressed: () => context.push('/legal/pricing'),
+                          child: Text(tr('paywall.pricing'), style: T.label.s(11).copyWith(color: C.muted)),
+                        ),
                         for (final doc in const ['terms', 'privacy'])
                           TextButton(
                             onPressed: () => context.push('/legal/$doc'),
@@ -318,7 +319,8 @@ class _UpiPaywallScreenState extends State<UpiPaywallScreen> with WidgetsBinding
                       ]),
                     ]),
                   ),
-                ]),
+                ])),
+                ),
               ),
             ),
           ),

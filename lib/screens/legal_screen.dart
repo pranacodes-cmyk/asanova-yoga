@@ -9,17 +9,36 @@ import '../widgets/scaffold.dart';
 import '../widgets/toast.dart';
 import '../widgets/ui.dart';
 import '../i18n/i18n.dart';
+import '../services/legal_service.dart';
 
 /// Privacy policy / terms of use (web `legal.$doc`). Same text as the public
 /// store-listing pages, generated from scripts/content/legal.ts.
-class LegalScreen extends StatelessWidget {
+class LegalScreen extends StatefulWidget {
   const LegalScreen({super.key, required this.doc});
   final String doc;
 
   @override
+  State<LegalScreen> createState() => _LegalScreenState();
+}
+
+class _LegalScreenState extends State<LegalScreen> {
+  Legal? remoteLegal;
+  LegalDoc? remoteDoc;
+  @override
+  void initState() {
+    super.initState();
+    LegalService.load(widget.doc).then((value) {
+      if (mounted) setState(() { remoteLegal = value.legal; remoteDoc = value.document; });
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final legal = Content.i.legal;
-    final d = doc == 'terms' ? legal.terms : legal.privacy;
+    final legal = remoteLegal ?? Content.i.legal;
+    final d = remoteDoc ?? (widget.doc == 'terms' ? legal.terms : legal.privacy);
+    if (widget.doc == 'pricing' && remoteDoc == null) {
+      return const EnsoScaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return EnsoScaffold(
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
